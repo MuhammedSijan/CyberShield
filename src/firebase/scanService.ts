@@ -33,7 +33,8 @@ export const saveScanToFirestore = async (uid: string, scan: ScanData) => {
     inputPreview: scan.inputPreview,
     recommendation: scan.recommendation,
     riskScore: scan.riskScore,
-    reportId: reportId
+    reportId: reportId,
+    uid: uid
   };
 
   await setDoc(docRef, docData);

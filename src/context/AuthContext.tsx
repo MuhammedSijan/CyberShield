@@ -91,6 +91,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
+      // Always set loading to true while we load user subcollections
+      setLoading(true);
+
       const profileRef = doc(db, 'users', firebaseUser.uid, 'profile', 'details');
       const settingsRef = doc(db, 'users', firebaseUser.uid, 'settings', 'preferences');
       const statsRef = doc(db, 'users', firebaseUser.uid, 'stats', 'securityScore');
@@ -189,8 +192,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
       };
 
-      unsubscribeProfile = onSnapshot(profileRef, (snap) => {
-        profileData = snap.exists() ? snap.data() : null;
+      unsubscribeProfile = onSnapshot(profileRef, async (snap) => {
+        if (!snap.exists()) {
+          // Auto-create profile details document if it's missing in Firestore
+          const displayName = firebaseUser.displayName || 'Google User';
+          const [firstName, ...lastNameParts] = displayName.split(' ');
+          const lastName = lastNameParts.join(' ');
+          
+          const profileDoc = {
+            firstName: firstName || 'User',
+            lastName: lastName || '',
+            email: firebaseUser.email || '',
+            phone: '',
+            age: 25,
+            gender: 'Prefer not to say',
+            photoURL: firebaseUser.photoURL || '',
+            provider: firebaseUser.providerData[0]?.providerId || (firebaseUser.isAnonymous ? 'anonymous' : 'password'),
+            createdAt: new Date().toISOString(),
+            lastLogin: new Date().toISOString()
+          };
+          try {
+            await setDoc(profileRef, profileDoc);
+          } catch (e) {
+            console.error("Auto-creating profile document failed:", e);
+          }
+          profileData = profileDoc;
+        } else {
+          profileData = snap.data();
+        }
         isProfileLoaded = true;
         checkAndSetUser();
       }, (error) => {
@@ -199,8 +228,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         checkAndSetUser();
       });
 
-      unsubscribeSettings = onSnapshot(settingsRef, (snap) => {
-        settingsData = snap.exists() ? snap.data() : null;
+      unsubscribeSettings = onSnapshot(settingsRef, async (snap) => {
+        if (!snap.exists()) {
+          // Auto-create settings preferences document if it's missing in Firestore
+          const settingsDoc = {
+            theme: 'dark',
+            animations: true,
+            backgroundEffects: true,
+            particles: true,
+            reducedMotion: false,
+            rememberLogin: true
+          };
+          try {
+            await setDoc(settingsRef, settingsDoc);
+          } catch (e) {
+            console.error("Auto-creating settings document failed:", e);
+          }
+          settingsData = settingsDoc;
+        } else {
+          settingsData = snap.data();
+        }
         isSettingsLoaded = true;
         checkAndSetUser();
       }, (error) => {
@@ -209,8 +256,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         checkAndSetUser();
       });
 
-      unsubscribeStats = onSnapshot(statsRef, (snap) => {
-        statsData = snap.exists() ? snap.data() : null;
+      unsubscribeStats = onSnapshot(statsRef, async (snap) => {
+        if (!snap.exists()) {
+          // Auto-create score statistics document if it's missing in Firestore
+          const statsDoc = {
+            securityScore: 100,
+            totalScans: 0
+          };
+          try {
+            await setDoc(statsRef, statsDoc);
+          } catch (e) {
+            console.error("Auto-creating stats document failed:", e);
+          }
+          statsData = statsDoc;
+        } else {
+          statsData = snap.data();
+        }
         isStatsLoaded = true;
         checkAndSetUser();
       }, (error) => {
@@ -264,6 +325,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!password) {
       throw new Error("Password is required");
     }
+    setLoading(true);
     try {
       // Set remember me persistence rules
       await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
@@ -279,11 +341,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sessionStorage.setItem('cs_start_time', now.toString());
       }
 
-      const userDocRef = doc(db, 'users', firebaseUser.uid);
-      await updateDoc(userDocRef, {
+      const profileRef = doc(db, 'users', firebaseUser.uid, 'profile', 'details');
+      await updateDoc(profileRef, {
         lastLogin: new Date().toISOString()
       }).catch((err) => console.error("Failed to update lastLogin:", err));
     } catch (err: any) {
+      setLoading(false);
       throw new Error(getFriendlyErrorMessage(err));
     }
   };
@@ -292,7 +355,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!details.password) {
       throw new Error("Password is required for registration");
     }
-
+    setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, details.email, details.password);
       const firebaseUser = userCredential.user;
@@ -335,11 +398,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await setDoc(doc(db, 'users', uid, 'settings', 'preferences'), settingsDoc);
       await setDoc(doc(db, 'users', uid, 'stats', 'securityScore'), statsDoc);
     } catch (err: any) {
+      setLoading(false);
       throw new Error(getFriendlyErrorMessage(err));
     }
   };
 
   const googleLogin = async () => {
+    setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
@@ -395,11 +460,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     } catch (err: any) {
+      setLoading(false);
       throw new Error(getFriendlyErrorMessage(err));
     }
   };
 
   const continueAsGuest = async () => {
+    setLoading(true);
     try {
       const result = await signInAnonymously(auth);
       const firebaseUser = result.user;
@@ -442,40 +509,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await setDoc(doc(db, 'users', uid, 'settings', 'preferences'), settingsDoc);
       await setDoc(doc(db, 'users', uid, 'stats', 'securityScore'), statsDoc);
     } catch (err: any) {
+      setLoading(false);
       throw new Error(getFriendlyErrorMessage(err));
     }
   };
 
   const logout = async () => {
-    const currentUser = auth.currentUser;
-    // Wipe anonymous data before deleting user sessions
-    if (currentUser && currentUser.isAnonymous) {
-      try {
-        const uid = currentUser.uid;
-        const historyColRef = collection(db, 'users', uid, 'history');
-        const snapshot = await getDocs(historyColRef);
-        const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-        await Promise.all(deletePromises);
+    setLoading(true);
+    try {
+      const currentUser = auth.currentUser;
+      // Wipe anonymous data before deleting user sessions
+      if (currentUser && currentUser.isAnonymous) {
+        try {
+          const uid = currentUser.uid;
+          const historyColRef = collection(db, 'users', uid, 'history');
+          const snapshot = await getDocs(historyColRef);
+          const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+          await Promise.all(deletePromises);
 
-        await deleteDoc(doc(db, 'users', uid, 'profile', 'details'));
-        await deleteDoc(doc(db, 'users', uid, 'settings', 'preferences'));
-        await deleteDoc(doc(db, 'users', uid, 'stats', 'securityScore'));
+          await deleteDoc(doc(db, 'users', uid, 'profile', 'details'));
+          await deleteDoc(doc(db, 'users', uid, 'settings', 'preferences'));
+          await deleteDoc(doc(db, 'users', uid, 'stats', 'securityScore'));
 
-        await currentUser.delete();
-      } catch (e) {
-        console.error("Failed to clean up guest session data:", e);
+          await currentUser.delete();
+        } catch (e) {
+          console.error("Failed to clean up guest session data:", e);
+        }
       }
-    }
 
-    await signOut(auth);
-    setUser(null);
-    setGuestMode(false);
-    setSessionStartTime(null);
-    localStorage.removeItem('cs_user');
-    localStorage.removeItem('cs_guest');
-    localStorage.removeItem('cs_start_time');
-    sessionStorage.removeItem('cs_user');
-    sessionStorage.removeItem('cs_start_time');
+      await signOut(auth);
+      setUser(null);
+      setGuestMode(false);
+      setSessionStartTime(null);
+      localStorage.removeItem('cs_user');
+      localStorage.removeItem('cs_guest');
+      localStorage.removeItem('cs_start_time');
+      sessionStorage.removeItem('cs_user');
+      sessionStorage.removeItem('cs_start_time');
+    } catch (e) {
+      console.error("Logout error:", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const sendPasswordReset = async (email: string) => {

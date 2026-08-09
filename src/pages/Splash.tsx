@@ -6,19 +6,21 @@ import { useAuth } from '../context/AuthContext';
 
 export const Splash: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
 
   useEffect(() => {
+    if (loading) return;
+
     const timer = setTimeout(() => {
       if (isAuthenticated) {
         navigate('/home', { replace: true });
       } else {
         navigate('/auth', { replace: true });
       }
-    }, 2000);
+    }, 1500);
 
     return () => clearTimeout(timer);
-  }, [navigate, isAuthenticated]);
+  }, [navigate, isAuthenticated, loading]);
 
   return (
     <div className="fixed inset-0 bg-[#0F172A] z-50 flex flex-col items-center justify-center text-center space-y-6">

@@ -157,7 +157,7 @@ export const SecurityHub: React.FC = () => {
     visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
   };
 
-  const totalReportsGenerated = scans.length > 0 ? scans.length : 3;
+  const totalReportsGenerated = scans.length;
 
   return (
     <div className="space-y-10 py-4 text-left max-w-7xl mx-auto">
