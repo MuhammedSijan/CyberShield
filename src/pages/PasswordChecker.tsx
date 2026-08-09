@@ -7,9 +7,11 @@ import {
 import { useToast } from '../hooks/useToast';
 import { useSecurity } from '../context/SecurityContext';
 import { SkeletonLoader } from '../components/common/SkeletonLoader';
+import { StepProgressScanner } from '../components/common/StepProgressScanner';
 
 export const PasswordChecker: React.FC = () => {
   const [password, setPassword] = useState('');
+  const [tempPassword, setTempPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showResults, setShowResults] = useState(false);
@@ -148,25 +150,26 @@ export const PasswordChecker: React.FC = () => {
       return;
     }
 
+    setTempPassword(password);
     setIsAnalyzing(true);
     setShowResults(false);
+  };
 
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      setShowResults(true);
+  const handleScanComplete = () => {
+    setIsAnalyzing(false);
+    setShowResults(true);
 
-      const riskLevel = metrics.strength === 'Very Strong' || metrics.strength === 'Strong'
-        ? 'Safe' 
-        : metrics.strength === 'Medium' 
-        ? 'Suspicious' 
-        : 'Danger';
+    const riskLevel = metrics.strength === 'Very Strong' || metrics.strength === 'Strong'
+      ? 'Safe' 
+      : metrics.strength === 'Medium' 
+      ? 'Suspicious' 
+      : 'Danger';
 
-      const riskScore = 100 - metrics.score;
+    const riskScore = 100 - metrics.score;
 
-      // Add to context safely - mask password length to preserve absolute privacy
-      addScan('password', `${password.length}-char password`, metrics.strength, riskScore, riskLevel);
-      showToast('Analysis Completed', 'Password health evaluated locally.', 'success');
-    }, 850);
+    // Add to context safely - mask password length to preserve absolute privacy
+    addScan('password', `${tempPassword.length}-char password`, metrics.strength, riskScore, riskLevel);
+    showToast('Analysis Completed', 'Password health evaluated locally.', 'success');
   };
 
 
@@ -210,33 +213,37 @@ export const PasswordChecker: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* INPUT BOX */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-5">
-            <h3 className="font-bold text-slate-800 dark:text-slate-200">Enter Password</h3>
-            
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Type your password..."
-                className="w-full pl-4 pr-12 py-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50 text-slate-850 dark:text-slate-200 text-sm focus:outline-none focus:border-primary font-mono tracking-wider transition-colors placeholder-slate-400 dark:placeholder-slate-650"
-              />
+          {isAnalyzing ? (
+            <StepProgressScanner onComplete={handleScanComplete} />
+          ) : (
+            <div className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-5">
+              <h3 className="font-bold text-slate-800 dark:text-slate-200">Enter Password</h3>
+              
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Type your password..."
+                  className="w-full pl-4 pr-12 py-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50 text-slate-850 dark:text-slate-200 text-sm focus:outline-none focus:border-primary font-mono tracking-wider transition-colors placeholder-slate-400 dark:placeholder-slate-655"
+                />
+                <button
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-3.5 text-slate-455 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+
               <button
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-3.5 text-slate-450 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                onClick={handleAnalyze}
+                disabled={isAnalyzing || !password.trim()}
+                className="w-full py-3 bg-primary hover:bg-primary-dark disabled:bg-primary/50 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-primary/10 flex items-center justify-center gap-1.5"
               >
-                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                {isAnalyzing ? 'Evaluating Security...' : 'Analyze Password'}
               </button>
             </div>
-
-            <button
-              onClick={handleAnalyze}
-              disabled={isAnalyzing || !password.trim()}
-              className="w-full py-3 bg-primary hover:bg-primary-dark disabled:bg-primary/50 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-primary/10 flex items-center justify-center gap-1.5"
-            >
-              {isAnalyzing ? 'Evaluating Security...' : 'Analyze Password'}
-            </button>
-          </div>
+          )}
 
           {/* CHECKLIST (REVEAL ON ANALYZE) */}
           <AnimatePresence>

@@ -7,10 +7,12 @@ import {
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { useSecurity } from '../context/SecurityContext';
+import { StepProgressScanner } from '../components/common/StepProgressScanner';
 
 export const QrScanner: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [tempQrContent, setTempQrContent] = useState<string>('');
   const [decodedText, setDecodedText] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
   const [isUrl, setIsUrl] = useState(false);
@@ -60,41 +62,41 @@ export const QrScanner: React.FC = () => {
   };
 
   const triggerScan = (content: string) => {
+    setTempQrContent(content);
     setIsScanning(true);
     setDecodedText(null);
     setIsUrl(false);
     setShowResults(false);
+  };
 
-    // Mock scan latency
-    setTimeout(() => {
-      setDecodedText(content);
-      setIsScanning(false);
-      setShowResults(true);
+  const handleScanComplete = () => {
+    setDecodedText(tempQrContent);
+    setIsScanning(false);
+    setShowResults(true);
+    
+    const parsedIsUrl = tempQrContent.startsWith('http://') || tempQrContent.startsWith('https://');
+    setIsUrl(parsedIsUrl);
+
+    // Log check in security context
+    const cleanTarget = tempQrContent.length > 25 ? `${tempQrContent.substring(0, 25)}...` : tempQrContent;
+    addScan(
+      'qr',
+      cleanTarget,
+      parsedIsUrl ? 'Redirection URL Decoded' : 'Plain Text Decoded',
+      parsedIsUrl ? 40 : 5,
+      parsedIsUrl ? 'Suspicious' : 'Safe'
+    );
+
+    showToast('Scan Completed', 'QR Code payload extracted.', 'success');
+
+    if (parsedIsUrl) {
+      showToast('URL Detected', 'Redirecting to URL Safety Analyzer in 2 seconds...', 'info');
       
-      const parsedIsUrl = content.startsWith('http://') || content.startsWith('https://');
-      setIsUrl(parsedIsUrl);
-
-      // Log check in security context
-      const cleanTarget = content.length > 25 ? `${content.substring(0, 25)}...` : content;
-      addScan(
-        'qr',
-        cleanTarget,
-        parsedIsUrl ? 'Redirection URL Decoded' : 'Plain Text Decoded',
-        parsedIsUrl ? 40 : 5,
-        parsedIsUrl ? 'Suspicious' : 'Safe'
-      );
-
-      showToast('Scan Completed', 'QR Code payload extracted.', 'success');
-
-      if (parsedIsUrl) {
-        showToast('URL Detected', 'Redirecting to URL Safety Analyzer in 2 seconds...', 'info');
-        
-        // Auto-redirect to URL Analyzer with the URL query param
-        setTimeout(() => {
-          navigate(`/url-analyzer?url=${encodeURIComponent(content)}`);
-        }, 2200);
-      }
-    }, 1500);
+      // Auto-redirect to URL Analyzer with the URL query param
+      setTimeout(() => {
+        navigate(`/url-analyzer?url=${encodeURIComponent(tempQrContent)}`);
+      }, 2200);
+    }
   };
 
   return (
@@ -203,18 +205,7 @@ export const QrScanner: React.FC = () => {
         <div className="lg:col-span-1">
           <AnimatePresence mode="wait">
             {isScanning && (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 h-full flex flex-col justify-center text-center py-20"
-              >
-                <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-xs text-slate-500 dark:text-slate-455">
-                  Decoding matrix symbols...
-                </p>
-              </motion.div>
+              <StepProgressScanner onComplete={handleScanComplete} />
             )}
 
             {!isScanning && !showResults && (

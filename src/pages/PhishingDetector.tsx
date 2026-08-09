@@ -6,13 +6,14 @@ import {
 } from 'lucide-react';
 import { phishingSamples } from '../data/mockData';
 import type { PhishingMockSample } from '../data/mockData';
-import { SkeletonLoader } from '../components/common/SkeletonLoader';
 import { useToast } from '../hooks/useToast';
 import { useSecurity } from '../context/SecurityContext';
+import { StepProgressScanner } from '../components/common/StepProgressScanner';
 
 export const PhishingDetector: React.FC = () => {
   const [messageText, setMessageText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [tempMessageEval, setTempMessageEval] = useState<any>(null);
   const [showResults, setShowResults] = useState(false);
   const [result, setResult] = useState<PhishingMockSample['evaluation'] | null>(null);
   const { showToast } = useToast();
@@ -34,69 +35,72 @@ export const PhishingDetector: React.FC = () => {
     setResult(null);
     setShowResults(false);
 
-    // Simulate analysis delay
-    setTimeout(() => {
-      // Find matching mock sample if there is one, otherwise generate generic response
-      const matched = phishingSamples.find(s => 
-        messageText.toLowerCase().includes(s.text.substring(0, 30).toLowerCase())
-      );
+    // Find matching mock sample if there is one, otherwise generate generic response
+    const matched = phishingSamples.find(s => 
+      messageText.toLowerCase().includes(s.text.substring(0, 30).toLowerCase())
+    );
 
-      let finalEval: PhishingMockSample['evaluation'];
+    let finalEval: PhishingMockSample['evaluation'];
 
-      if (matched) {
-        finalEval = matched.evaluation;
-      } else {
-        // Fallback generic scanner
-        const text = messageText.toLowerCase();
-        let riskScore = 15;
-        const indicators = [];
-        const recommendations = [
-          "Do not share personal details, credit cards, or logins via this link.",
-          "Check details directly with the official brand support portal if unsure."
-        ];
+    if (matched) {
+      finalEval = matched.evaluation;
+    } else {
+      // Fallback generic scanner
+      const text = messageText.toLowerCase();
+      let riskScore = 15;
+      const indicators = [];
+      const recommendations = [
+        "Do not share personal details, credit cards, or logins via this link.",
+        "Check details directly with the official brand support portal if unsure."
+      ];
 
-        if (text.includes('http://') || text.includes('https://')) {
-          riskScore += 30;
-          indicators.push("Contains hyperlinks which might direct to malicious gateways.");
-        }
-        if (text.includes('urgent') || text.includes('immediate') || text.includes('freeze') || text.includes('suspend') || text.includes('lock')) {
-          riskScore += 25;
-          indicators.push("Contains urgent action words ('immediate', 'freeze', 'suspend') creating social panic.");
-          recommendations.push("Observe caution: urgent requests are common signatures of credit harvesting.");
-        }
-        if (text.includes('win') || text.includes('congratulations') || text.includes('prize') || text.includes('lottery') || text.includes('lucky')) {
-          riskScore += 20;
-          indicators.push("Promises financial or materialistic prizes ('congratulations', 'win').");
-          recommendations.push("Avoid clicking lottery references; companies do not raffle gifts through cold communication.");
-        }
-
-        let riskLevel: 'Safe' | 'Suspicious' | 'Danger' = 'Safe';
-        if (riskScore > 65) {
-          riskLevel = 'Danger';
-        } else if (riskScore > 30) {
-          riskLevel = 'Suspicious';
-        }
-
-        finalEval = {
-          riskScore,
-          riskLevel,
-          indicators: indicators.length > 0 ? indicators : ["No standard automated indicators detected, verify sender credentials."],
-          recommendations,
-          explanation: `Automated rule matches flagged ${indicators.length} primary signature(s). The language patterns suggest a ${riskScore}% probability of threat manipulation.`
-        };
+      if (text.includes('http://') || text.includes('https://')) {
+        riskScore += 30;
+        indicators.push("Contains hyperlinks which might direct to malicious gateways.");
+      }
+      if (text.includes('urgent') || text.includes('immediate') || text.includes('freeze') || text.includes('suspend') || text.includes('lock')) {
+        riskScore += 25;
+        indicators.push("Contains urgent action words ('immediate', 'freeze', 'suspend') creating social panic.");
+        recommendations.push("Observe caution: urgent requests are common signatures of credit harvesting.");
+      }
+      if (text.includes('win') || text.includes('congratulations') || text.includes('prize') || text.includes('lottery') || text.includes('lucky')) {
+        riskScore += 20;
+        indicators.push("Promises financial or materialistic prizes ('congratulations', 'win').");
+        recommendations.push("Avoid clicking lottery references; companies do not raffle gifts through cold communication.");
       }
 
-      setResult(finalEval);
-      setIsLoading(false);
-      setShowResults(true);
+      let riskLevel: 'Safe' | 'Suspicious' | 'Danger' = 'Safe';
+      if (riskScore > 65) {
+        riskLevel = 'Danger';
+      } else if (riskScore > 30) {
+        riskLevel = 'Suspicious';
+      }
 
-      // Register log in session report
-      const cleanTarget = messageText.length > 30 
-        ? `${messageText.substring(0, 30)}...` 
-        : messageText;
-      addScan('phishing', cleanTarget, finalEval.riskLevel === 'Safe' ? 'Verified Clean' : 'Potential Fraud', finalEval.riskScore, finalEval.riskLevel);
-      showToast('Analysis Completed', 'Suspicious payload parsed successfully.', 'success');
-    }, 1500);
+      finalEval = {
+        riskScore,
+        riskLevel,
+        indicators: indicators.length > 0 ? indicators : ["No standard automated indicators detected, verify sender credentials."],
+        recommendations,
+        explanation: `Automated rule matches flagged ${indicators.length} primary signature(s). The language patterns suggest a ${riskScore}% probability of threat manipulation.`
+      };
+    }
+
+    setTempMessageEval({ finalEval, messageText });
+  };
+
+  const handleScanComplete = () => {
+    if (!tempMessageEval) return;
+    const { finalEval, messageText: textVal } = tempMessageEval;
+    
+    setResult(finalEval);
+    setIsLoading(false);
+    setShowResults(true);
+
+    const cleanTarget = textVal.length > 30 
+      ? `${textVal.substring(0, 30)}...` 
+      : textVal;
+    addScan('phishing', cleanTarget, finalEval.riskLevel === 'Safe' ? 'Verified Clean' : 'Potential Fraud', finalEval.riskScore, finalEval.riskLevel);
+    showToast('Analysis Completed', 'Suspicious payload parsed successfully.', 'success');
   };
 
   useEffect(() => {
@@ -209,18 +213,7 @@ export const PhishingDetector: React.FC = () => {
         <div className="lg:col-span-1">
           <AnimatePresence mode="wait">
             {isLoading && (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 h-full flex flex-col justify-center"
-              >
-                <SkeletonLoader count={1} className="py-4" />
-                <p className="text-xs text-center text-slate-455 dark:text-slate-500 mt-4">
-                  Parsing syntactic features & comparing domains...
-                </p>
-              </motion.div>
+              <StepProgressScanner onComplete={handleScanComplete} />
             )}
 
             {!isLoading && !showResults && (

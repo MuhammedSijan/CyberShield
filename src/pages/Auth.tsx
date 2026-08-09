@@ -23,8 +23,14 @@ export const Auth: React.FC = () => {
   const [acceptTerms, setAcceptTerms] = useState(false);
 
   const { showToast } = useToast();
-  const { login, signup, googleLogin, continueAsGuest } = useAuth();
+  const { login, signup, googleLogin, continueAsGuest, sendPasswordReset, isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (!loading && isAuthenticated) {
+      navigate('/home');
+    }
+  }, [isAuthenticated, loading, navigate]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,8 +43,8 @@ export const Auth: React.FC = () => {
       await login(email, password, rememberMe);
       showToast('Logged In Successfully', `Welcome back to CyberShield!`, 'success');
       navigate('/home');
-    } catch (err) {
-      showToast('Authentication Failed', 'Invalid email or password combination.', 'danger');
+    } catch (err: any) {
+      showToast('Authentication Failed', err.message || 'Invalid email or password combination.', 'danger');
     }
   };
 
@@ -70,12 +76,13 @@ export const Auth: React.FC = () => {
         email,
         phone,
         gender,
-        age: parsedAge
+        age: parsedAge,
+        password: password
       });
       showToast('Account Created', `Welcome to CyberShield, ${firstName}!`, 'success');
       navigate('/home');
-    } catch (err) {
-      showToast('Sign Up Failed', 'Could not register account. Please try again.', 'danger');
+    } catch (err: any) {
+      showToast('Sign Up Failed', err.message || 'Could not register account. Please try again.', 'danger');
     }
   };
 
@@ -84,15 +91,32 @@ export const Auth: React.FC = () => {
       await googleLogin();
       showToast('Google Sign-In Success', 'Authenticated successfully with Google.', 'success');
       navigate('/home');
-    } catch (err) {
-      showToast('Sign-In Failed', 'Google login authentication aborted.', 'danger');
+    } catch (err: any) {
+      showToast('Sign-In Failed', err.message || 'Google login authentication aborted.', 'danger');
     }
   };
 
-  const handleGuestMode = () => {
-    continueAsGuest();
-    showToast('Guest Session Activated', 'Operating locally. Session audits will not persist online.', 'info');
-    navigate('/home');
+  const handleGuestMode = async () => {
+    try {
+      await continueAsGuest();
+      showToast('Guest Session Activated', 'Operating locally. Session audits will not persist online.', 'info');
+      navigate('/home');
+    } catch (err: any) {
+      showToast('Guest Session Failed', err.message || 'Could not start guest session.', 'danger');
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      showToast('Validation Error', 'Please enter your email address in the email field first.', 'warning');
+      return;
+    }
+    try {
+      await sendPasswordReset(email);
+      showToast('Recovery Email Sent', `Password reset instructions have been dispatched to ${email}.`, 'success');
+    } catch (err: any) {
+      showToast('Recovery Failed', err.message || 'Could not send recovery email.', 'danger');
+    }
   };
 
   return (
@@ -211,7 +235,7 @@ export const Auth: React.FC = () => {
                     </label>
                     <button
                       type="button"
-                      onClick={() => showToast('Reset Required', 'Password recovery links will be wired dynamically with Firebase.', 'info')}
+                      onClick={handleForgotPassword}
                       className="text-[10px] font-bold text-primary hover:text-primary-light transition-colors"
                     >
                       Forgot Password?

@@ -8,13 +8,14 @@ import {
 } from 'lucide-react';
 import { urlSamples } from '../data/mockData';
 import type { UrlMockSample } from '../data/mockData';
-import { SkeletonLoader } from '../components/common/SkeletonLoader';
 import { useToast } from '../hooks/useToast';
 import { useSecurity } from '../context/SecurityContext';
+import { StepProgressScanner } from '../components/common/StepProgressScanner';
 
 export const UrlAnalyzer: React.FC = () => {
   const [urlInput, setUrlInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [tempUrlEval, setTempUrlEval] = useState<any>(null);
   const [showResults, setShowResults] = useState(false);
   const [result, setResult] = useState<UrlMockSample['evaluation'] | null>(null);
   const [searchParams] = useSearchParams();
@@ -32,57 +33,63 @@ export const UrlAnalyzer: React.FC = () => {
     setResult(null);
     setShowResults(false);
 
-    setTimeout(() => {
-      const cleanUrl = url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-      const matchedKey = Object.keys(urlSamples).find(key => 
-        url.toLowerCase().includes(key) || cleanUrl.toLowerCase().includes(key)
-      );
+    const cleanUrl = url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+    const matchedKey = Object.keys(urlSamples).find(key => 
+      url.toLowerCase().includes(key) || cleanUrl.toLowerCase().includes(key)
+    );
 
-      let finalEval: UrlMockSample['evaluation'];
+    let finalEval: UrlMockSample['evaluation'];
 
-      if (matchedKey) {
-        finalEval = urlSamples[matchedKey].evaluation;
-      } else {
-        const lowerUrl = url.toLowerCase();
-        let riskScore = 10;
-        let hasHttps = lowerUrl.startsWith('https://');
-        const keywords = ['paypal', 'secure', 'bank', 'login', 'update', 'verify', 'account', 'signin', 'support', 'recovery'];
-        const foundKeywords = keywords.filter(kw => lowerUrl.includes(kw));
-        const cleanHost = url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-        const isIp = /^[0-9.]+$/.test(cleanHost.replace(/:[0-9]+$/, ''));
-        const subdomains = cleanHost.split('.').length - 2;
-        const subCount = subdomains > 0 ? subdomains : 0;
-        const typosquatting = lowerUrl.includes('0') || lowerUrl.includes('rn') || lowerUrl.includes('vv') || lowerUrl.includes('g00g') || lowerUrl.includes('paypaI');
+    if (matchedKey) {
+      finalEval = urlSamples[matchedKey].evaluation;
+    } else {
+      const lowerUrl = url.toLowerCase();
+      let riskScore = 10;
+      let hasHttps = lowerUrl.startsWith('https://');
+      const keywords = ['paypal', 'secure', 'bank', 'login', 'update', 'verify', 'account', 'signin', 'support', 'recovery'];
+      const foundKeywords = keywords.filter(kw => lowerUrl.includes(kw));
+      const cleanHost = url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+      const isIp = /^[0-9.]+$/.test(cleanHost.replace(/:[0-9]+$/, ''));
+      const subdomains = cleanHost.split('.').length - 2;
+      const subCount = subdomains > 0 ? subdomains : 0;
+      const typosquatting = lowerUrl.includes('0') || lowerUrl.includes('rn') || lowerUrl.includes('vv') || lowerUrl.includes('g00g') || lowerUrl.includes('paypaI');
 
-        if (!hasHttps) riskScore += 25;
-        if (foundKeywords.length > 0) riskScore += foundKeywords.length * 15;
-        if (isIp) riskScore += 35;
-        if (typosquatting) riskScore += 30;
-        if (subCount > 3) riskScore += 20;
+      if (!hasHttps) riskScore += 25;
+      if (foundKeywords.length > 0) riskScore += foundKeywords.length * 15;
+      if (isIp) riskScore += 35;
+      if (typosquatting) riskScore += 30;
+      if (subCount > 3) riskScore += 20;
 
-        const riskLevel = riskScore > 60 ? 'Danger' : riskScore > 25 ? 'Suspicious' : 'Safe';
+      const riskLevel = riskScore > 60 ? 'Danger' : riskScore > 25 ? 'Suspicious' : 'Safe';
 
-        finalEval = {
-          riskScore: Math.min(riskScore, 100),
-          riskLevel,
-          hasHttps,
-          domainLength: cleanHost.length,
-          suspiciousKeywords: foundKeywords,
-          isIpAddress: isIp,
-          typosquattingDetected: typosquatting,
-          subdomainCount: subCount,
-          explanation: `URL evaluated client-side. Casing keywords matched: ${foundKeywords.length}. Protocol matches standard configurations: ${hasHttps ? 'Yes (HTTPS)' : 'No (HTTP)'}.`
-        };
-      }
+      finalEval = {
+        riskScore: Math.min(riskScore, 100),
+        riskLevel,
+        hasHttps,
+        domainLength: cleanHost.length,
+        suspiciousKeywords: foundKeywords,
+        isIpAddress: isIp,
+        typosquattingDetected: typosquatting,
+        subdomainCount: subCount,
+        explanation: `URL evaluated client-side. Casing keywords matched: ${foundKeywords.length}. Protocol matches standard configurations: ${hasHttps ? 'Yes (HTTPS)' : 'No (HTTP)'}.`
+      };
+    }
 
-      setResult(finalEval);
-      setIsLoading(false);
-      setShowResults(true);
+    // Save calculated metrics
+    setTempUrlEval({ url, isAuto, finalEval });
+  };
 
-      // Log in session report
-      addScan('url', url, finalEval.riskLevel === 'Safe' ? 'Verified Safe' : 'Threat Flags Found', finalEval.riskScore, finalEval.riskLevel);
-      showToast(isAuto ? 'Auto Scan Completed' : 'Scan Completed', 'Domain safety metrics evaluated.', 'success');
-    }, 1200);
+  const handleScanComplete = () => {
+    if (!tempUrlEval) return;
+    const { url, isAuto, finalEval } = tempUrlEval;
+    
+    setResult(finalEval);
+    setIsLoading(false);
+    setShowResults(true);
+
+    // Log in session report
+    addScan('url', url, finalEval.riskLevel === 'Safe' ? 'Verified Safe' : 'Threat Flags Found', finalEval.riskScore, finalEval.riskLevel);
+    showToast(isAuto ? 'Auto Scan Completed' : 'Scan Completed', 'Domain safety metrics evaluated.', 'success');
   };
 
   useEffect(() => {
@@ -211,18 +218,7 @@ export const UrlAnalyzer: React.FC = () => {
         <div className="lg:col-span-1">
           <AnimatePresence mode="wait">
             {isLoading && (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 h-full flex flex-col justify-center"
-              >
-                <SkeletonLoader count={1} className="py-4" />
-                <p className="text-xs text-center text-slate-455 dark:text-slate-500 mt-4">
-                  Evaluating DNS metadata & parsing domain tokens...
-                </p>
-              </motion.div>
+              <StepProgressScanner onComplete={handleScanComplete} />
             )}
 
             {!isLoading && !showResults && (

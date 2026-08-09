@@ -18,7 +18,10 @@ import { QrScanner } from './pages/QrScanner';
 import { Quiz } from './pages/Quiz';
 import { About } from './pages/About';
 import { Contact } from './pages/Contact';
+import { Profile } from './pages/Profile';
+import { Settings } from './pages/Settings';
 import { NotFound } from './pages/NotFound';
+import TestFirebase from "./pages/TestFirebase";
 
 function App() {
   return (
@@ -30,6 +33,7 @@ function App() {
               {/* Splash and Auth routes - outside main layout */}
               <Route path="/" element={<Splash />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/test" element={<TestFirebase />} />
 
               {/* Protected app routes - inside main layout */}
               <Route
@@ -50,6 +54,8 @@ function App() {
                         <Route path="/quiz" element={<Quiz />} />
                         <Route path="/about" element={<About />} />
                         <Route path="/contact" element={<Contact />} />
+                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/settings" element={<Settings />} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </MainLayout>

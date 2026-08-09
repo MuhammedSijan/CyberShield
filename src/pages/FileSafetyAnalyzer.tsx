@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { useSecurity } from '../context/SecurityContext';
+import { StepProgressScanner } from '../components/common/StepProgressScanner';
 
 interface FileDetails {
   name: string;
@@ -22,6 +23,7 @@ interface FileDetails {
 export const FileSafetyAnalyzer: React.FC = () => {
   const [fileDetails, setFileDetails] = useState<FileDetails | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [tempFileEval, setTempFileEval] = useState<any>(null);
   const [dragOver, setDragOver] = useState(false);
 
   const { showToast } = useToast();
@@ -101,27 +103,30 @@ export const FileSafetyAnalyzer: React.FC = () => {
         riskLevel
       };
 
-      // Latency simulation for nice UI feedback
-      setTimeout(() => {
-        setFileDetails(evalInfo);
-        setIsScanning(false);
-
-        // Save scan to global context reports
-        addScan(
-          'file',
-          file.name,
-          `${evalInfo.extension.toUpperCase()} • ${evalInfo.riskLevel}`,
-          evalInfo.riskScore,
-          evalInfo.riskLevel
-        );
-
-        showToast('File Scan Completed', 'File metadata and cryptographic hash evaluated locally.', 'success');
-      }, 1500);
-
+      setTempFileEval({ file, evalInfo });
     } catch (err) {
       setIsScanning(false);
       showToast('Analysis Error', 'Failed to inspect file payload.', 'danger');
     }
+  };
+
+  const handleScanComplete = () => {
+    if (!tempFileEval) return;
+    const { file, evalInfo } = tempFileEval;
+
+    setFileDetails(evalInfo);
+    setIsScanning(false);
+
+    // Save scan to global context reports
+    addScan(
+      'file',
+      file.name,
+      `${evalInfo.extension.toUpperCase()} • ${evalInfo.riskLevel}`,
+      evalInfo.riskScore,
+      evalInfo.riskLevel
+    );
+
+    showToast('File Scan Completed', 'File metadata and cryptographic hash evaluated locally.', 'success');
   };
 
   const onDragOver = (e: React.DragEvent) => {
@@ -250,18 +255,7 @@ export const FileSafetyAnalyzer: React.FC = () => {
         <div className="lg:col-span-1">
           <AnimatePresence mode="wait">
             {isScanning && (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 h-full flex flex-col justify-center text-center py-20"
-              >
-                <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-xs text-slate-550 dark:text-slate-450">
-                  Calculating cryptographic SHA-256 hash checksum...
-                </p>
-              </motion.div>
+              <StepProgressScanner onComplete={handleScanComplete} />
             )}
 
             {!isScanning && !fileDetails && (

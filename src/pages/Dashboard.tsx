@@ -71,7 +71,8 @@ export const Dashboard: React.FC = () => {
   // 2. ACTIVE DASHBOARD REPORT
   const totalChecks = scans.length;
   const flaggedRisks = scans.filter((s) => s.riskLevel !== 'Safe').length;
-  const passwordChecks = scans.filter((s) => s.type === 'password').length;
+  const safeScans = scans.filter((s) => s.riskLevel === 'Safe').length;
+  const dangerousScans = scans.filter((s) => s.riskLevel === 'Danger').length;
   const quizChecks = scans.filter((s) => s.type === 'quiz').length;
   const safetyScore = getSafetyScore();
 
@@ -166,18 +167,18 @@ export const Dashboard: React.FC = () => {
             <h3 className="font-bold text-lg text-slate-800 dark:text-white">Activity Summary</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3.5 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                <span className="text-xs text-slate-400 dark:text-slate-500">Evaluated Scans</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">Total Scans</span>
                 <p className="text-2xl font-bold text-slate-800 dark:text-white">{totalChecks}</p>
               </div>
               <div className="p-3.5 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                <span className="text-xs text-slate-400 dark:text-slate-500">Flagged Risk</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">Threats Found</span>
                 <p className={`text-2xl font-bold ${flaggedRisks > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
                   {flaggedRisks}
                 </p>
               </div>
               <div className="p-3.5 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                <span className="text-xs text-slate-400 dark:text-slate-500">Password Evaluated</span>
-                <p className="text-2xl font-bold text-slate-800 dark:text-white">{passwordChecks}</p>
+                <span className="text-xs text-slate-400 dark:text-slate-500">Safe Scans</span>
+                <p className="text-2xl font-bold text-emerald-500">{safeScans}</p>
               </div>
               <div className="p-3.5 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
                 <span className="text-xs text-slate-400 dark:text-slate-500">Quiz Completed</span>
@@ -185,9 +186,9 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-850 flex justify-between text-xs text-slate-400 dark:text-slate-500">
-            <span>Scan Source: Client Browser</span>
-            <span>Security Engine Live</span>
+          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-850 flex flex-col sm:flex-row justify-between gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+            <span>Last Login: {user?.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'N/A'}</span>
+            <span>Dangerous Scans: <strong className="text-rose-500">{dangerousScans}</strong></span>
           </div>
         </div>
 
