@@ -6,15 +6,17 @@ import { getFirestore } from "firebase/firestore";
 
 // Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyCzSZMVnk7M8ha-CXyWjka1eesScD7F_fQ",
-    authDomain: "cybershield-io.firebaseapp.com",
-    projectId: "cybershield-io",
-    storageBucket: "cybershield-io.firebasestorage.app",
-    messagingSenderId: "1044779465470",
-    appId: "1:1044779465470:web:095f5f201df54b4acb03af",
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 // Initialize Firebase
+console.log("ENV:", import.meta.env);
+console.log("Firebase API Key:", import.meta.env.VITE_FIREBASE_API_KEY);
 const app = initializeApp(firebaseConfig);
 
 // Firebase Services

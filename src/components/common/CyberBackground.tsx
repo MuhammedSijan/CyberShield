@@ -74,7 +74,7 @@ export const CyberBackground: React.FC = () => {
       particles = [];
       packets = [];
       lights = [];
-      
+
       // Initialize nodes
       for (let i = 0; i < maxParticles; i++) {
         particles.push({
@@ -83,7 +83,7 @@ export const CyberBackground: React.FC = () => {
           vx: (Math.random() - 0.5) * (isPerfSetting ? 0.08 : 0.16),
           vy: (Math.random() - 0.5) * (isPerfSetting ? 0.08 : 0.16),
           radius: Math.random() * 1.5 + 1.2,
-          pulse: Math.random(),
+          pulse: 0.9 + Math.random() * 0.2,
           pulseDir: Math.random() > 0.5 ? 0.01 : -0.01
         });
       }
@@ -126,14 +126,14 @@ export const CyberBackground: React.FC = () => {
         lights.forEach(l => {
           l.x += l.vx;
           l.y += l.vy;
-          
+
           if (l.x < 0 || l.x > width) l.vx *= -1;
           if (l.y < 0 || l.y > height) l.vy *= -1;
 
           const glowGrad = ctx.createRadialGradient(l.x, l.y, 10, l.x, l.y, l.radius);
           glowGrad.addColorStop(0, 'rgba(37, 99, 235, 0.02)');
           glowGrad.addColorStop(1, 'rgba(37, 99, 235, 0)');
-          
+
           ctx.beginPath();
           ctx.arc(l.x, l.y, l.radius, 0, Math.PI * 2);
           ctx.fillStyle = glowGrad;
@@ -146,7 +146,7 @@ export const CyberBackground: React.FC = () => {
         gridOffset += isPerfSetting ? 0.08 : 0.15;
         ctx.strokeStyle = isDark ? 'rgba(37, 99, 235, 0.015)' : 'rgba(37, 99, 235, 0.008)';
         ctx.lineWidth = 0.5;
-        
+
         const gridSize = 65;
         const offsetX = gridOffset % gridSize;
         const offsetY = gridOffset % gridSize;
@@ -176,13 +176,24 @@ export const CyberBackground: React.FC = () => {
           if (p.x < 0 || p.x > width) p.vx *= -1;
           if (p.y < 0 || p.y > height) p.vy *= -1;
 
-          // Pulse dot size
+          // Pulse dot size (safe)
           p.pulse += p.pulseDir;
-          if (p.pulse > 1.2 || p.pulse < 0.8) p.pulseDir *= -1;
 
-          // Render Particle
+          if (p.pulse > 1.2) {
+            p.pulse = 1.2;
+            p.pulseDir = -Math.abs(p.pulseDir);
+          }
+
+          if (p.pulse < 0.8) {
+            p.pulse = 0.8;
+            p.pulseDir = Math.abs(p.pulseDir);
+          }
+
+          // Render Particle (safe radius)
+          const particleRadius = Math.max(0.5, p.radius * p.pulse);
+
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.radius * p.pulse, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, particleRadius, 0, Math.PI * 2);
           ctx.fillStyle = dotColorBase;
           ctx.fill();
 
@@ -219,14 +230,14 @@ export const CyberBackground: React.FC = () => {
         if (!isPerfSetting) {
           packets = packets.filter(pkt => {
             pkt.progress += pkt.speed;
-            
+
             const start = particles[pkt.from];
             const end = particles[pkt.to];
-            
+
             if (start && end && pkt.progress < 1) {
               const px = start.x + (end.x - start.x) * pkt.progress;
               const py = start.y + (end.y - start.y) * pkt.progress;
-              
+
               ctx.beginPath();
               ctx.arc(px, py, 1.8, 0, Math.PI * 2);
               ctx.fillStyle = isDark ? 'rgba(96, 165, 250, 0.65)' : 'rgba(37, 99, 235, 0.45)';
