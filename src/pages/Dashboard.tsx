@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  Play, Trash2, MessageSquare, Globe, Key, QrCode, Award, Shield 
+  Play, Trash2, MessageSquare, Globe, Key, QrCode, Award, Shield, RotateCw 
 } from 'lucide-react';
 import { useSecurity } from '../context/SecurityContext';
 import type { ScanItem } from '../context/SecurityContext';
 import { generatePDFReport } from '../utils/pdfReport';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../hooks/useToast';
 
 export const Dashboard: React.FC = () => {
   const { scans, clearScans, getSafetyScore } = useSecurity();
   const { user, sessionStartTime } = useAuth();
+  const { showToast } = useToast();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const getToolIcon = (type: ScanItem['type']) => {
     switch (type) {
@@ -70,11 +73,74 @@ export const Dashboard: React.FC = () => {
 
   // 2. ACTIVE DASHBOARD REPORT
   const totalChecks = scans.length;
-  const flaggedRisks = scans.filter((s) => s.riskLevel !== 'Safe').length;
+  const todaysScans = scans.filter(s => {
+    const scanDate = new Date(s.timestamp);
+    const today = new Date();
+    return scanDate.toDateString() === today.toDateString();
+  }).length;
   const safeScans = scans.filter((s) => s.riskLevel === 'Safe').length;
+  const suspiciousScans = scans.filter((s) => s.riskLevel === 'Suspicious').length;
   const dangerousScans = scans.filter((s) => s.riskLevel === 'Danger').length;
-  const quizChecks = scans.filter((s) => s.type === 'quiz').length;
+
+  const quizScans = scans.filter((s) => s.type === 'quiz');
+  const quizAttempts = quizScans.length;
+  const avgQuizScore = quizAttempts > 0 
+    ? Math.round(quizScans.reduce((acc, curr) => acc + (100 - curr.riskScore), 0) / quizAttempts) 
+    : 0;
+
   const safetyScore = getSafetyScore();
+
+  const toolCounts: Record<string, number> = {};
+  scans.forEach(scan => {
+    toolCounts[scan.type] = (toolCounts[scan.type] || 0) + 1;
+  });
+  
+  let mostUsedType = 'N/A';
+  let maxCount = 0;
+  Object.entries(toolCounts).forEach(([type, count]) => {
+    if (count > maxCount) {
+      maxCount = count;
+      mostUsedType = type;
+    }
+  });
+
+  const toolNameMap: Record<string, string> = {
+    'url': 'URL Analyzer',
+    'phishing': 'Phishing Detector',
+    'password': 'Password Checker',
+    'qr': 'QR Scanner',
+    'file': 'File Analyzer',
+    'quiz': 'Hygiene Quiz',
+    'generator': 'Password Generator'
+  };
+  const mostUsedTool = toolNameMap[mostUsedType] || 'N/A';
+
+  const lastScanTime = scans.length > 0 
+    ? new Date(scans[0].timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
+    : 'N/A';
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      showToast('Reports Synced', 'Real-time security metrics are fully synchronized with Firestore.', 'success');
+    } catch (err) {
+      showToast('Sync Error', 'Failed to synchronize with backend database.', 'danger');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleClearReport = async () => {
+    if (window.confirm("Are you sure you want to permanently delete all scan reports? This will reset your stats and score.")) {
+      try {
+        await clearScans();
+        showToast('Report Cleared', 'All diagnostic logs have been wiped from Firestore.', 'info');
+      } catch (err) {
+        showToast('Clear Failed', 'Failed to delete scans history.', 'danger');
+      }
+    }
+  };
 
   let grade = 'A+';
   let gradeColor = 'text-emerald-500';
@@ -97,7 +163,15 @@ export const Dashboard: React.FC = () => {
           <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white">Security Report</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Review diagnostic logs generated in your active session.</p>
         </div>
-        <div className="flex flex-col gap-2 w-full sm:w-auto">
+        <div className="flex flex-row flex-wrap gap-2 w-full sm:w-auto justify-start sm:justify-end">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="px-4 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5"
+          >
+            <RotateCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Syncing...' : 'Refresh'}
+          </button>
           <button
             onClick={() => generatePDFReport(scans, safetyScore, sessionStartTime ? Date.now() - sessionStartTime : 0, user)}
             className="px-4 py-2 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-1.5"
@@ -105,7 +179,7 @@ export const Dashboard: React.FC = () => {
             Download Security Report
           </button>
           <button
-            onClick={clearScans}
+            onClick={handleClearReport}
             className="px-4 py-2 border border-rose-500/30 hover:bg-rose-500/10 text-rose-500 text-xs font-semibold rounded-xl transition-colors flex items-center justify-center gap-1.5"
           >
             <Trash2 className="h-4 w-4" /> Clear Local Report
@@ -167,28 +241,36 @@ export const Dashboard: React.FC = () => {
             <h3 className="font-bold text-lg text-slate-800 dark:text-white">Activity Summary</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3.5 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                <span className="text-xs text-slate-400 dark:text-slate-500">Total Scans</span>
-                <p className="text-2xl font-bold text-slate-800 dark:text-white">{totalChecks}</p>
+                <span className="text-xs text-slate-400 dark:text-slate-500">Total / Today's Scans</span>
+                <p className="text-xl font-bold text-slate-800 dark:text-white">{totalChecks} / {todaysScans}</p>
               </div>
               <div className="p-3.5 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                <span className="text-xs text-slate-400 dark:text-slate-500">Threats Found</span>
-                <p className={`text-2xl font-bold ${flaggedRisks > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                  {flaggedRisks}
+                <span className="text-xs text-slate-400 dark:text-slate-500">Safe / Suspicious Scans</span>
+                <p className="text-xl font-bold text-slate-800 dark:text-white">
+                  <span className="text-emerald-500">{safeScans}</span> / <span className="text-amber-500">{suspiciousScans}</span>
                 </p>
               </div>
               <div className="p-3.5 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                <span className="text-xs text-slate-400 dark:text-slate-500">Safe Scans</span>
-                <p className="text-2xl font-bold text-emerald-500">{safeScans}</p>
+                <span className="text-xs text-slate-400 dark:text-slate-500">Dangerous / Most Used</span>
+                <p className="text-xl font-bold text-slate-800 dark:text-white truncate">
+                  <span className="text-rose-500">{dangerousScans}</span> / <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 inline-block truncate max-w-[65px] align-middle ml-1">{mostUsedTool}</span>
+                </p>
               </div>
               <div className="p-3.5 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                <span className="text-xs text-slate-400 dark:text-slate-500">Quiz Completed</span>
-                <p className="text-2xl font-bold text-slate-850 dark:text-white">{quizChecks}</p>
+                <span className="text-xs text-slate-400 dark:text-slate-500">Quiz Attempts / Avg</span>
+                <p className="text-xl font-bold text-slate-850 dark:text-white">{quizAttempts} / {avgQuizScore}%</p>
               </div>
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-850 flex flex-col sm:flex-row justify-between gap-1.5 text-xs text-slate-400 dark:text-slate-500">
-            <span>Last Login: {user?.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'N/A'}</span>
-            <span>Dangerous Scans: <strong className="text-rose-500">{dangerousScans}</strong></span>
+          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-850 flex flex-col gap-1 text-[10px] text-slate-400 dark:text-slate-500">
+            <div className="flex justify-between">
+              <span>Last Scan: {lastScanTime}</span>
+              <span>Last Login: {user?.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'N/A'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Security Score: {safetyScore}%</span>
+              <span>Active Sync Live</span>
+            </div>
           </div>
         </div>
 

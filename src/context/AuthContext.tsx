@@ -73,11 +73,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Monitor auth state changes and sync with Firestore
   useEffect(() => {
-    let unsubscribeSnap: () => void = () => {};
+    let unsubscribeProfile: () => void = () => {};
+    let unsubscribeSettings: () => void = () => {};
+    let unsubscribeStats: () => void = () => {};
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Clean up previous snapshot listener if it exists
-      unsubscribeSnap();
+      // Clean up previous snapshot listeners if they exist
+      unsubscribeProfile();
+      unsubscribeSettings();
+      unsubscribeStats();
 
       if (!firebaseUser) {
         setUser(null);
@@ -87,95 +91,85 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      const userDocRef = doc(db, 'users', firebaseUser.uid);
+      const profileRef = doc(db, 'users', firebaseUser.uid, 'profile', 'details');
+      const settingsRef = doc(db, 'users', firebaseUser.uid, 'settings', 'preferences');
+      const statsRef = doc(db, 'users', firebaseUser.uid, 'stats', 'securityScore');
 
-      // Subscribe to real-time updates of the user's Firestore document
-      unsubscribeSnap = onSnapshot(userDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data() as User;
+      let profileData: any = null;
+      let settingsData: any = null;
+      let statsData: any = null;
 
-          // Sync settings from Firestore preferences to localStorage and document classList
-          if (data.preferences) {
-            const prefs = data.preferences;
-            if (prefs.theme) {
-              localStorage.setItem('theme', prefs.theme);
-              const root = document.documentElement;
-              if (prefs.theme === 'dark') {
-                root.classList.add('dark');
-                root.classList.remove('light');
-              } else if (prefs.theme === 'light') {
-                root.classList.add('light');
-                root.classList.remove('dark');
-              } else {
-                const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                if (systemDark) {
-                  root.classList.add('dark');
-                  root.classList.remove('light');
-                } else {
-                  root.classList.add('light');
-                  root.classList.remove('dark');
-                }
-              }
+      let isProfileLoaded = false;
+      let isSettingsLoaded = false;
+      let isStatsLoaded = false;
+
+      const checkAndSetUser = () => {
+        if (!isProfileLoaded || !isSettingsLoaded || !isStatsLoaded) return;
+
+        const preferences = settingsData || {
+          theme: 'dark',
+          animations: true,
+          backgroundEffects: true,
+          particles: true,
+          reducedMotion: false,
+          rememberLogin: true
+        };
+
+        const securityScore = statsData?.securityScore ?? 100;
+        const totalScans = statsData?.totalScans ?? 0;
+
+        // Sync settings from Firestore preferences to localStorage and document classList
+        if (preferences) {
+          const theme = preferences.theme || 'dark';
+          localStorage.setItem('theme', theme);
+          const root = document.documentElement;
+          if (theme === 'dark') {
+            root.classList.add('dark');
+            root.classList.remove('light');
+          } else if (theme === 'light') {
+            root.classList.add('light');
+            root.classList.remove('dark');
+          } else {
+            const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (systemDark) {
+              root.classList.add('dark');
+              root.classList.remove('light');
+            } else {
+              root.classList.add('light');
+              root.classList.remove('dark');
             }
-            if (prefs.animations !== undefined) localStorage.setItem('cfg_anim', prefs.animations.toString());
-            if (prefs.reducedMotion !== undefined) localStorage.setItem('cfg_motion', prefs.reducedMotion.toString());
-            if (prefs.particles !== undefined) localStorage.setItem('cfg_bg_particle', prefs.particles.toString());
-            if (prefs.backgroundEffects !== undefined) localStorage.setItem('cfg_bg_grid', prefs.backgroundEffects.toString());
-            if (prefs.rememberLogin !== undefined) localStorage.setItem('cfg_remember_login', prefs.rememberLogin.toString());
-
-            // Fire settings update trigger so visual canvases reload
-            window.dispatchEvent(new Event('settings-update'));
           }
+          if (preferences.animations !== undefined) localStorage.setItem('cfg_anim', preferences.animations.toString());
+          if (preferences.reducedMotion !== undefined) localStorage.setItem('cfg_motion', preferences.reducedMotion.toString());
+          if (preferences.particles !== undefined) localStorage.setItem('cfg_bg_particle', preferences.particles.toString());
+          if (preferences.backgroundEffects !== undefined) localStorage.setItem('cfg_bg_grid', preferences.backgroundEffects.toString());
+          if (preferences.rememberLogin !== undefined) localStorage.setItem('cfg_remember_login', preferences.rememberLogin.toString());
 
-          if (firebaseUser.isAnonymous) {
-            setUser(null);
-            setGuestMode(true);
-          } else {
-            setUser({
-              uid: firebaseUser.uid,
-              firstName: data.firstName || '',
-              lastName: data.lastName || '',
-              email: data.email || firebaseUser.email || '',
-              phone: data.phone || '',
-              age: data.age,
-              gender: data.gender,
-              photoURL: data.photoURL || firebaseUser.photoURL || '',
-              provider: data.provider || 'password',
-              createdAt: data.createdAt || '',
-              lastLogin: data.lastLogin || '',
-              securityScore: data.securityScore ?? 100,
-              totalScans: data.totalScans ?? 0,
-              preferences: data.preferences || ({} as any)
-            });
-            setGuestMode(false);
-          }
+          // Fire settings update trigger so visual canvases reload
+          window.dispatchEvent(new Event('settings-update'));
+        }
+
+        if (firebaseUser.isAnonymous) {
+          setUser(null);
+          setGuestMode(true);
         } else {
-          // Document does not exist yet (creating profile in progress or deleted)
-          if (firebaseUser.isAnonymous) {
-            setUser(null);
-            setGuestMode(true);
-          } else {
-            setUser({
-              uid: firebaseUser.uid,
-              firstName: firebaseUser.displayName?.split(' ')[0] || 'User',
-              lastName: firebaseUser.displayName?.split(' ').slice(1).join(' ') || '',
-              email: firebaseUser.email || '',
-              provider: firebaseUser.providerData[0]?.providerId || 'password',
-              createdAt: new Date().toISOString(),
-              lastLogin: new Date().toISOString(),
-              securityScore: 100,
-              totalScans: 0,
-              preferences: {
-                theme: 'dark',
-                animations: true,
-                backgroundEffects: true,
-                particles: true,
-                reducedMotion: false,
-                rememberLogin: true
-              }
-            });
-            setGuestMode(false);
-          }
+          setUser({
+            uid: firebaseUser.uid,
+            firstName: profileData?.firstName || 'User',
+            lastName: profileData?.lastName || '',
+            email: profileData?.email || firebaseUser.email || '',
+            phone: profileData?.phone || '',
+            age: profileData?.age,
+            gender: profileData?.gender,
+            photoURL: profileData?.photoURL || firebaseUser.photoURL || '',
+            provider: profileData?.provider || 'password',
+            createdAt: profileData?.createdAt || new Date().toISOString(),
+            lastLogin: profileData?.lastLogin || new Date().toISOString(),
+            securityScore: securityScore,
+            totalScans: totalScans,
+            preferences: preferences
+          });
+          setGuestMode(false);
         }
 
         // Session Time restore/setup
@@ -193,10 +187,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         setLoading(false);
+      };
+
+      unsubscribeProfile = onSnapshot(profileRef, (snap) => {
+        profileData = snap.exists() ? snap.data() : null;
+        isProfileLoaded = true;
+        checkAndSetUser();
       }, (error) => {
-        console.error("Firestore onSnapshot error:", error);
-        setLoading(false);
+        console.error("Profile listen error:", error);
+        isProfileLoaded = true;
+        checkAndSetUser();
       });
+
+      unsubscribeSettings = onSnapshot(settingsRef, (snap) => {
+        settingsData = snap.exists() ? snap.data() : null;
+        isSettingsLoaded = true;
+        checkAndSetUser();
+      }, (error) => {
+        console.error("Settings listen error:", error);
+        isSettingsLoaded = true;
+        checkAndSetUser();
+      });
+
+      unsubscribeStats = onSnapshot(statsRef, (snap) => {
+        statsData = snap.exists() ? snap.data() : null;
+        isStatsLoaded = true;
+        checkAndSetUser();
+      }, (error) => {
+        console.error("Stats listen error:", error);
+        isStatsLoaded = true;
+        checkAndSetUser();
+      });
+
     }, (error) => {
       console.error("onAuthStateChanged error:", error);
       setLoading(false);
@@ -204,7 +226,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       unsubscribeAuth();
-      unsubscribeSnap();
+      unsubscribeProfile();
+      unsubscribeSettings();
+      unsubscribeStats();
     };
   }, []);
 
@@ -277,10 +301,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSessionStartTime(now);
       localStorage.setItem('cs_start_time', now.toString());
 
-      const userDocRef = doc(db, 'users', firebaseUser.uid);
+      const uid = firebaseUser.uid;
       const nowISO = new Date().toISOString();
-      const newUserDoc = {
-        uid: firebaseUser.uid,
+
+      const profileDoc = {
         firstName: details.firstName,
         lastName: details.lastName,
         email: details.email,
@@ -290,19 +314,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         photoURL: '',
         provider: 'password',
         createdAt: nowISO,
-        lastLogin: nowISO,
-        securityScore: 100,
-        totalScans: 0,
-        preferences: {
-          theme: 'dark' as const,
-          animations: true,
-          backgroundEffects: true,
-          particles: true,
-          reducedMotion: false,
-          rememberLogin: true
-        }
+        lastLogin: nowISO
       };
-      await setDoc(userDocRef, newUserDoc);
+
+      const settingsDoc = {
+        theme: 'dark',
+        animations: true,
+        backgroundEffects: true,
+        particles: true,
+        reducedMotion: false,
+        rememberLogin: true
+      };
+
+      const statsDoc = {
+        securityScore: 100,
+        totalScans: 0
+      };
+
+      await setDoc(doc(db, 'users', uid, 'profile', 'details'), profileDoc);
+      await setDoc(doc(db, 'users', uid, 'settings', 'preferences'), settingsDoc);
+      await setDoc(doc(db, 'users', uid, 'stats', 'securityScore'), statsDoc);
     } catch (err: any) {
       throw new Error(getFriendlyErrorMessage(err));
     }
@@ -314,21 +345,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const result = await signInWithPopup(auth, provider);
       const firebaseUser = result.user;
 
-      const userDocRef = doc(db, 'users', firebaseUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
+      const uid = firebaseUser.uid;
+      const profileRef = doc(db, 'users', uid, 'profile', 'details');
+      const profileSnap = await getDoc(profileRef);
       const nowISO = new Date().toISOString();
 
       const now = Date.now();
       setSessionStartTime(now);
       localStorage.setItem('cs_start_time', now.toString());
 
-      if (!userDocSnap.exists()) {
+      if (!profileSnap.exists()) {
         const displayName = firebaseUser.displayName || 'Google User';
         const [firstName, ...lastNameParts] = displayName.split(' ');
         const lastName = lastNameParts.join(' ');
 
-        const newUserDoc = {
-          uid: firebaseUser.uid,
+        const profileDoc = {
           firstName: firstName || 'Google',
           lastName: lastName || 'User',
           email: firebaseUser.email || '',
@@ -338,21 +369,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           photoURL: firebaseUser.photoURL || '',
           provider: 'google.com',
           createdAt: nowISO,
-          lastLogin: nowISO,
-          securityScore: 100,
-          totalScans: 0,
-          preferences: {
-            theme: 'dark' as const,
-            animations: true,
-            backgroundEffects: true,
-            particles: true,
-            reducedMotion: false,
-            rememberLogin: true
-          }
+          lastLogin: nowISO
         };
-        await setDoc(userDocRef, newUserDoc);
+
+        const settingsDoc = {
+          theme: 'dark',
+          animations: true,
+          backgroundEffects: true,
+          particles: true,
+          reducedMotion: false,
+          rememberLogin: true
+        };
+
+        const statsDoc = {
+          securityScore: 100,
+          totalScans: 0
+        };
+
+        await setDoc(doc(db, 'users', uid, 'profile', 'details'), profileDoc);
+        await setDoc(doc(db, 'users', uid, 'settings', 'preferences'), settingsDoc);
+        await setDoc(doc(db, 'users', uid, 'stats', 'securityScore'), statsDoc);
       } else {
-        await updateDoc(userDocRef, {
+        await updateDoc(profileRef, {
           lastLogin: nowISO
         });
       }
@@ -370,32 +408,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSessionStartTime(now);
       localStorage.setItem('cs_start_time', now.toString());
 
-      const userDocRef = doc(db, 'users', firebaseUser.uid);
+      const uid = firebaseUser.uid;
       const nowISO = new Date().toISOString();
-      const newUserDoc = {
-        uid: firebaseUser.uid,
+
+      const profileDoc = {
         firstName: 'Guest',
         lastName: 'User',
         email: '',
         phone: '',
-        age: null as any,
+        age: null,
         gender: 'Prefer not to say',
         photoURL: '',
         provider: 'anonymous',
         createdAt: nowISO,
-        lastLogin: nowISO,
-        securityScore: 100,
-        totalScans: 0,
-        preferences: {
-          theme: 'dark' as const,
-          animations: true,
-          backgroundEffects: true,
-          particles: true,
-          reducedMotion: false,
-          rememberLogin: true
-        }
+        lastLogin: nowISO
       };
-      await setDoc(userDocRef, newUserDoc);
+
+      const settingsDoc = {
+        theme: 'dark',
+        animations: true,
+        backgroundEffects: true,
+        particles: true,
+        reducedMotion: false,
+        rememberLogin: true
+      };
+
+      const statsDoc = {
+        securityScore: 100,
+        totalScans: 0
+      };
+
+      await setDoc(doc(db, 'users', uid, 'profile', 'details'), profileDoc);
+      await setDoc(doc(db, 'users', uid, 'settings', 'preferences'), settingsDoc);
+      await setDoc(doc(db, 'users', uid, 'stats', 'securityScore'), statsDoc);
     } catch (err: any) {
       throw new Error(getFriendlyErrorMessage(err));
     }
@@ -411,7 +456,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const snapshot = await getDocs(historyColRef);
         const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
         await Promise.all(deletePromises);
-        await deleteDoc(doc(db, 'users', uid));
+
+        await deleteDoc(doc(db, 'users', uid, 'profile', 'details'));
+        await deleteDoc(doc(db, 'users', uid, 'settings', 'preferences'));
+        await deleteDoc(doc(db, 'users', uid, 'stats', 'securityScore'));
+
         await currentUser.delete();
       } catch (e) {
         console.error("Failed to clean up guest session data:", e);

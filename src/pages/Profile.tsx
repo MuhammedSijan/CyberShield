@@ -77,7 +77,7 @@ export const Profile: React.FC = () => {
     }
 
     try {
-      const userRef = doc(db, 'users', user.uid);
+      const userRef = doc(db, 'users', user.uid, 'profile', 'details');
       await updateDoc(userRef, {
         firstName,
         lastName,

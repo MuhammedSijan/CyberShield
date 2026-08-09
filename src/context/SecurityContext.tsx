@@ -5,14 +5,16 @@ import {
   collection, 
   doc, 
   setDoc, 
-  updateDoc, 
   deleteDoc, 
   getDocs, 
   onSnapshot, 
   query, 
   orderBy, 
-  increment 
+  increment,
+  serverTimestamp
 } from 'firebase/firestore';
+import { saveScanToFirestore } from '../firebase/scanService';
+import type { ScanData } from '../firebase/scanService';
 
 export interface ScanItem {
   id: string;
@@ -72,6 +74,41 @@ const getRecommendationsFor = (type: string, riskLevel: string): string[] => {
   }
 };
 
+export const calculateSecurityScore = (items: ScanItem[]): number => {
+  let score = 100;
+  items.forEach(scan => {
+    const type = scan.type;
+    const risk = scan.riskLevel;
+
+    if (type === 'url') {
+      if (risk === 'Safe') score += 2;
+      else if (risk === 'Danger') score -= 10;
+      else if (risk === 'Suspicious') score -= 5;
+    } else if (type === 'phishing') {
+      if (risk === 'Safe') score += 2;
+      else if (risk === 'Danger') score -= 10;
+      else if (risk === 'Suspicious') score -= 5;
+    } else if (type === 'password') {
+      if (risk === 'Safe') score += 2;
+      else if (risk === 'Danger') score -= 5;
+      else if (risk === 'Suspicious') score -= 2;
+    } else if (type === 'qr') {
+      if (risk === 'Safe') score += 2;
+      else if (risk === 'Danger') score -= 10;
+      else if (risk === 'Suspicious') score -= 5;
+    } else if (type === 'file') {
+      if (risk === 'Safe') score += 2;
+      else if (risk === 'Danger') score -= 10;
+      else if (risk === 'Suspicious') score -= 5;
+    } else if (type === 'quiz') {
+      score += 5;
+    } else if (type === 'generator') {
+      score += 2;
+    }
+  });
+  return Math.min(100, Math.max(0, score));
+};
+
 export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, guestMode } = useAuth();
   const [scans, setScans] = useState<ScanItem[]>([]);
@@ -93,8 +130,10 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         let type: ScanItem['type'] = 'url';
         const scanTypeLower = (data.scanType || '').toLowerCase();
         
-        if (scanTypeLower === 'password' || scanTypeLower === 'generator') {
+        if (scanTypeLower === 'password') {
           type = 'password';
+        } else if (scanTypeLower === 'generator') {
+          type = 'generator';
         } else if (scanTypeLower === 'url') {
           type = 'url';
         } else if (scanTypeLower === 'phishing') {
@@ -107,14 +146,30 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           type = 'quiz';
         }
 
+        // Safely extract timestamp string even when it is a Firestore Timestamp object
+        let timestampStr = '';
+        if (data.timestamp) {
+          if (typeof data.timestamp.toDate === 'function') {
+            timestampStr = data.timestamp.toDate().toISOString();
+          } else if (typeof data.timestamp === 'string') {
+            timestampStr = data.timestamp;
+          } else if (data.timestamp.seconds) {
+            timestampStr = new Date(data.timestamp.seconds * 1000).toISOString();
+          } else {
+            timestampStr = new Date().toISOString();
+          }
+        } else {
+          timestampStr = new Date().toISOString();
+        }
+
         return {
           id: data.reportId || docSnap.id,
           type: type,
-          target: data.input || '',
-          result: data.result || '',
+          target: data.inputPreview || data.input || '',
+          result: data.summary || data.result || '',
           riskScore: data.riskScore ?? (data.riskLevel === 'Danger' ? 100 : data.riskLevel === 'Suspicious' ? 50 : 0),
           riskLevel: (data.riskLevel || 'Safe') as ScanItem['riskLevel'],
-          timestamp: data.timestamp || new Date().toISOString()
+          timestamp: timestampStr
         };
       });
       setScans(mapped);
@@ -137,9 +192,6 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     try {
       const uid = currentUser.uid;
-      const historyColRef = collection(db, 'users', uid, 'history');
-      const docRef = doc(historyColRef);
-      const reportId = docRef.id;
 
       const typeMap: Record<string, string> = {
         'url': 'URL',
@@ -148,42 +200,63 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         'file': 'File',
         'phishing': 'Phishing',
         'quiz': 'Quiz',
-        'generator': 'Password'
+        'generator': 'Generator'
+      };
+
+      const toolNameMap: Record<string, string> = {
+        'url': 'URL Safety Analyzer',
+        'phishing': 'Phishing Detector',
+        'password': 'Password Health Checker',
+        'qr': 'QR Scanner',
+        'file': 'File Safety Analyzer',
+        'quiz': 'Cyber Hygiene Quiz',
+        'generator': 'Password Generator'
       };
 
       const scanType = typeMap[type] || 'URL';
-      const timestamp = new Date().toISOString();
+      const toolName = toolNameMap[type] || 'URL Safety Analyzer';
 
-      const newScanDoc = {
+      // Mask passwords for safety if it's password checking
+      let inputPreview = target;
+      if (type === 'password' && !target.includes('-char password')) {
+        inputPreview = `${target.length}-char password`;
+      }
+
+      const scanData: ScanData = {
         scanType,
-        timestamp,
-        input: target,
-        result,
+        toolName,
+        status: 'Completed',
         riskLevel,
-        riskScore,
-        recommendations: getRecommendationsFor(type, riskLevel),
-        reportId
+        summary: result,
+        inputPreview,
+        recommendation: getRecommendationsFor(type, riskLevel).join(' '),
+        riskScore
       };
 
-      await setDoc(docRef, newScanDoc);
+      const { reportId } = await saveScanToFirestore(uid, scanData);
 
-      if (!currentUser.isAnonymous) {
-        const userRef = doc(db, 'users', uid);
-        
-        // Re-calculate local safety score synchronously to update user profile doc immediately
-        const currentScans = [
-          { id: reportId, type, target, result, riskScore, riskLevel, timestamp },
-          ...scans.filter(s => !(s.type === type && s.target === target))
-        ].slice(0, 10);
-        
-        const totalSafety = currentScans.reduce((acc, scan) => acc + (100 - scan.riskScore), 0);
-        const newSafetyScore = currentScans.length > 0 ? Math.round(totalSafety / currentScans.length) : 100;
+      // Recalculate dynamic safety score locally to update stats immediately
+      const newScanItem: ScanItem = {
+        id: reportId,
+        type,
+        target: inputPreview,
+        result,
+        riskScore,
+        riskLevel,
+        timestamp: new Date().toISOString()
+      };
 
-        await updateDoc(userRef, {
-          totalScans: increment(1),
-          securityScore: newSafetyScore
-        });
-      }
+      const updatedScansList = [newScanItem, ...scans.filter(s => !(s.type === type && s.target === inputPreview))];
+      const newScore = calculateSecurityScore(updatedScansList);
+
+      // Update the score immediately in Firestore under users/{uid}/stats/securityScore
+      const statsDocRef = doc(db, 'users', uid, 'stats', 'securityScore');
+      await setDoc(statsDocRef, {
+        securityScore: newScore,
+        totalScans: increment(1),
+        lastScanTime: serverTimestamp()
+      }, { merge: true });
+
     } catch (err) {
       console.error("Failed to write scan to Firestore:", err);
     }
@@ -200,22 +273,20 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const deletePromises = snapshot.docs.map(docSnap => deleteDoc(docSnap.ref));
       await Promise.all(deletePromises);
 
-      if (!currentUser.isAnonymous) {
-        const userRef = doc(db, 'users', uid);
-        await updateDoc(userRef, {
-          securityScore: 100,
-          totalScans: 0
-        });
-      }
+      // Reset statistics inside stats/securityScore
+      const statsDocRef = doc(db, 'users', uid, 'stats', 'securityScore');
+      await setDoc(statsDocRef, {
+        securityScore: 100,
+        totalScans: 0,
+        lastScanTime: null
+      }, { merge: true });
     } catch (err) {
       console.error("Failed to clear scans from Firestore:", err);
     }
   };
 
   const getSafetyScore = () => {
-    if (scans.length === 0) return 0;
-    const totalSafety = scans.reduce((acc, scan) => acc + (100 - scan.riskScore), 0);
-    return Math.round(totalSafety / scans.length);
+    return calculateSecurityScore(scans);
   };
 
   return (

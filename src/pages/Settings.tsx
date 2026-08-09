@@ -4,7 +4,7 @@ import { useSecurity } from '../context/SecurityContext';
 import { useToast } from '../hooks/useToast';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/firebase';
-import { doc, updateDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, deleteDoc, collection, getDocs, setDoc } from 'firebase/firestore';
 import { 
   Sun, Lock, Trash2, Download, LogOut, ShieldAlert, Sliders, Bell
 } from 'lucide-react';
@@ -65,17 +65,15 @@ export const Settings: React.FC = () => {
     // Update preferences in Firestore (for registered user sessions only)
     const currentUser = auth.currentUser;
     if (currentUser && !currentUser.isAnonymous) {
-      const userRef = doc(db, 'users', currentUser.uid);
-      updateDoc(userRef, {
-        preferences: {
-          theme: themeMode,
-          animations: enableAnimations,
-          backgroundEffects: gridLines,
-          particles: animatedBg,
-          reducedMotion: reduceMotion,
-          rememberLogin: rememberLogin
-        }
-      }).catch((err) => console.error("Failed to sync preferences to Firestore:", err));
+      const settingsRef = doc(db, 'users', currentUser.uid, 'settings', 'preferences');
+      setDoc(settingsRef, {
+        theme: themeMode,
+        animations: enableAnimations,
+        backgroundEffects: gridLines,
+        particles: animatedBg,
+        reducedMotion: reduceMotion,
+        rememberLogin: rememberLogin
+      }, { merge: true }).catch((err) => console.error("Failed to sync preferences to Firestore:", err));
     }
   }, [
     themeMode, enableAnimations, reduceMotion, animatedBg, gridLines, 
@@ -154,8 +152,10 @@ export const Settings: React.FC = () => {
         const deletePromises = snapshot.docs.map(docSnap => deleteDoc(docSnap.ref));
         await Promise.all(deletePromises);
 
-        // 2. Delete user profile document
-        await deleteDoc(doc(db, 'users', uid));
+        // 2. Delete user subcollection documents
+        await deleteDoc(doc(db, 'users', uid, 'profile', 'details'));
+        await deleteDoc(doc(db, 'users', uid, 'settings', 'preferences'));
+        await deleteDoc(doc(db, 'users', uid, 'stats', 'securityScore'));
 
         // 3. Delete Firebase Auth user credentials
         await currentUser.delete();
