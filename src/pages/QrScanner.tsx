@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   QrCode, UploadCloud, Camera, RefreshCw, 
-  ShieldCheck, AlertCircle, FileText, ExternalLink
+  ShieldCheck, AlertCircle, ExternalLink
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { useSecurity } from '../context/SecurityContext';
 import { StepProgressScanner } from '../components/common/StepProgressScanner';
+import { aiService } from '../services/ai/aiService';
+import { Sparkles } from 'lucide-react';
 
 export const QrScanner: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -16,6 +18,7 @@ export const QrScanner: React.FC = () => {
   const [decodedText, setDecodedText] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
   const [isUrl, setIsUrl] = useState(false);
+  const [aiResult, setAiResult] = useState<any>(null);
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { addScan } = useSecurity();
@@ -61,12 +64,20 @@ export const QrScanner: React.FC = () => {
     }
   };
 
-  const triggerScan = (content: string) => {
+  const triggerScan = async (content: string) => {
     setTempQrContent(content);
     setIsScanning(true);
     setDecodedText(null);
     setIsUrl(false);
     setShowResults(false);
+    setAiResult(null);
+
+    try {
+      const aiResponse = await aiService.analyzeQr(content);
+      setAiResult(aiResponse);
+    } catch (err: any) {
+      console.error("AI QR scan failed:", err);
+    }
   };
 
   const handleScanComplete = () => {
@@ -77,26 +88,33 @@ export const QrScanner: React.FC = () => {
     const parsedIsUrl = tempQrContent.startsWith('http://') || tempQrContent.startsWith('https://');
     setIsUrl(parsedIsUrl);
 
+    // Mapped risk levels
+    let riskLevel: 'Safe' | 'Suspicious' | 'Danger' = 'Safe';
+    let riskScore = 5;
+
+    if (aiResult) {
+      if (aiResult.riskLevel === 'HIGH' || aiResult.riskLevel === 'CRITICAL') {
+        riskLevel = 'Danger';
+      } else if (aiResult.riskLevel === 'MEDIUM') {
+        riskLevel = 'Suspicious';
+      }
+      riskScore = aiResult.confidence || (parsedIsUrl ? 40 : 5);
+    } else {
+      riskLevel = parsedIsUrl ? 'Suspicious' : 'Safe';
+      riskScore = parsedIsUrl ? 40 : 5;
+    }
+
     // Log check in security context
     const cleanTarget = tempQrContent.length > 25 ? `${tempQrContent.substring(0, 25)}...` : tempQrContent;
     addScan(
       'qr',
       cleanTarget,
       parsedIsUrl ? 'Redirection URL Decoded' : 'Plain Text Decoded',
-      parsedIsUrl ? 40 : 5,
-      parsedIsUrl ? 'Suspicious' : 'Safe'
+      riskScore,
+      riskLevel
     );
 
-    showToast('Scan Completed', 'QR Code payload extracted.', 'success');
-
-    if (parsedIsUrl) {
-      showToast('URL Detected', 'Redirecting to URL Safety Analyzer in 2 seconds...', 'info');
-      
-      // Auto-redirect to URL Analyzer with the URL query param
-      setTimeout(() => {
-        navigate(`/url-analyzer?url=${encodeURIComponent(tempQrContent)}`);
-      }, 2200);
-    }
+    showToast('Scan Completed', 'QR Code payload safety evaluated.', 'success');
   };
 
   return (
@@ -232,53 +250,99 @@ export const QrScanner: React.FC = () => {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 h-full flex flex-col justify-between"
+                className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-6"
               >
-                <div className="space-y-6">
+                <div className="space-y-4">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="h-5 w-5 text-emerald-500" />
-                    <h3 className="font-bold text-slate-800 dark:text-slate-200">Decoded Content</h3>
+                    <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">Decoded Content</h3>
                   </div>
 
-                  <div className="p-4 bg-slate-100 dark:bg-slate-800/45 rounded-xl border border-slate-200 dark:border-slate-800 select-all break-all font-mono text-xs text-slate-700 dark:text-slate-250">
+                  <div className="p-3.5 bg-slate-105 dark:bg-slate-800/45 rounded-xl border border-slate-205 dark:border-slate-800/60 select-all break-all font-mono text-xs text-slate-700 dark:text-slate-250">
                     {decodedText}
                   </div>
 
-                  {isUrl ? (
-                    <div className="p-4 bg-amber-500/10 border border-amber-500/25 rounded-xl space-y-2">
+                  {isUrl && (
+                    <div className="p-3.5 bg-amber-500/10 border border-amber-500/25 rounded-xl space-y-1">
                       <div className="flex items-center gap-1.5">
                         <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
-                        <span className="text-xs font-bold text-amber-605 dark:text-amber-500 uppercase">Redirect Safety Alert</span>
+                        <span className="text-[10px] font-bold text-amber-605 dark:text-amber-500 uppercase">Redirect Warning</span>
                       </div>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                        This QR code contains a website link. Opening browser locations via QR scans skips basic search checking and exposes you to typosquatting.
+                      <p className="text-[10px] text-slate-655 dark:text-slate-400 leading-relaxed">
+                        This QR code points to a website. Opening links from unknown QR codes bypassing standard DNS checks is highly risky.
                       </p>
                     </div>
-                  ) : (
-                    <div className="p-4 bg-blue-500/10 border border-blue-500/25 rounded-xl space-y-2">
-                      <div className="flex items-center gap-1.5">
-                        <FileText className="h-4 w-4 text-blue-500 shrink-0" />
-                        <span className="text-xs font-bold text-blue-605 dark:text-blue-500 uppercase">Static Text Content</span>
+                  )}
+
+                  {/* AI Explanation Section */}
+                  {aiResult && (
+                    <div className="p-4 bg-gradient-to-br from-indigo-500/5 to-slate-900/5 border border-indigo-500/10 rounded-xl relative overflow-hidden space-y-3">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-primary" />
+                          <span className="text-[10px] font-bold text-primary uppercase">ShieldAI Security Analysis</span>
+                        </div>
+                        <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                          Confidence: {aiResult.confidence ?? 100}%
+                        </span>
                       </div>
-                      <p className="text-[11px] text-slate-650 dark:text-slate-400 leading-relaxed">
-                        No redirection link was found. The decoded output represents a configuration file or plain identifier logs.
+                      
+                      <p className="text-[11px] text-slate-550 dark:text-slate-400 leading-relaxed border-b border-slate-100 dark:border-slate-800/40 pb-2">
+                        {aiResult.explanation}
                       </p>
+
+                      {aiResult.indicators && aiResult.indicators.length > 0 && (
+                        <div className="space-y-1 text-left">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-rose-505 dark:text-rose-400">Threat Indicators</span>
+                          <div className="flex flex-col gap-1">
+                            {aiResult.indicators.map((ind: string, idx: number) => (
+                              <div key={idx} className="text-[10px] text-slate-500 dark:text-slate-400 flex items-start gap-1">
+                                <span className="text-rose-500 mt-0.5">•</span>
+                                <span>{ind}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {aiResult.recommendations && aiResult.recommendations.length > 0 && (
+                        <div className="space-y-1 text-left pt-1">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">Advisory Tips</span>
+                          <div className="flex flex-col gap-1">
+                            {aiResult.recommendations.map((rec: string, idx: number) => (
+                              <div key={idx} className="text-[10px] text-slate-500 dark:text-slate-400 flex items-start gap-1">
+                                <span className="text-emerald-500 mt-0.5">✓</span>
+                                <span>{rec}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {aiResult.immediateActions && aiResult.immediateActions.length > 0 && (
+                        <div className="p-2 bg-rose-500/5 border border-rose-500/10 rounded-lg space-y-1 text-left">
+                          <span className="text-[9px] font-black uppercase tracking-wider text-rose-500 dark:text-rose-455">Immediate Mitigation</span>
+                          <div className="flex flex-col gap-1">
+                            {aiResult.immediateActions.map((act: string, idx: number) => (
+                              <div key={idx} className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold flex items-start gap-1">
+                                <span className="mt-0.5 text-rose-500 font-bold">!</span>
+                                <span>{act}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
 
                 {isUrl && (
-                  <div className="pt-6 space-y-3">
-                    <p className="text-[10px] text-center text-slate-400 dark:text-slate-500 animate-pulse">
-                      Automatic redirect to URL Safety Analyzer in progress...
-                    </p>
-                    <button
-                      onClick={() => navigate(`/url-analyzer?url=${encodeURIComponent(decodedText)}`)}
-                      className="w-full py-2.5 bg-primary hover:bg-primary-dark text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-primary/20"
-                    >
-                      Analyze URL Manually <ExternalLink className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => navigate(`/url-analyzer?url=${encodeURIComponent(decodedText)}`)}
+                    className="w-full py-2.5 bg-primary hover:bg-primary-dark text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-primary/20"
+                  >
+                    Analyze URL Manually <ExternalLink className="h-3.5 w-3.5" />
+                  </button>
                 )}
               </motion.div>
             )}

@@ -9,13 +9,14 @@ import type { PhishingMockSample } from '../data/mockData';
 import { useToast } from '../hooks/useToast';
 import { useSecurity } from '../context/SecurityContext';
 import { StepProgressScanner } from '../components/common/StepProgressScanner';
+import { aiService } from '../services/ai/aiService';
 
 export const PhishingDetector: React.FC = () => {
   const [messageText, setMessageText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [tempMessageEval, setTempMessageEval] = useState<any>(null);
   const [showResults, setShowResults] = useState(false);
-  const [result, setResult] = useState<PhishingMockSample['evaluation'] | null>(null);
+  const [result, setResult] = useState<any | null>(null);
   const { showToast } = useToast();
   const { addScan } = useSecurity();
 
@@ -25,7 +26,7 @@ export const PhishingDetector: React.FC = () => {
     setShowResults(false);
   };
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (!messageText.trim()) {
       showToast('Input Required', 'Please enter a message or select a mock sample to analyze.', 'warning');
       return;
@@ -35,57 +36,51 @@ export const PhishingDetector: React.FC = () => {
     setResult(null);
     setShowResults(false);
 
-    // Find matching mock sample if there is one, otherwise generate generic response
-    const matched = phishingSamples.find(s => 
-      messageText.toLowerCase().includes(s.text.substring(0, 30).toLowerCase())
-    );
-
-    let finalEval: PhishingMockSample['evaluation'];
-
-    if (matched) {
-      finalEval = matched.evaluation;
-    } else {
-      // Fallback generic scanner
+    try {
       const text = messageText.toLowerCase();
-      let riskScore = 15;
-      const indicators = [];
-      const recommendations = [
-        "Do not share personal details, credit cards, or logins via this link.",
-        "Check details directly with the official brand support portal if unsure."
-      ];
+      let localRiskScore = 15;
+      const localIndicators: string[] = [];
 
       if (text.includes('http://') || text.includes('https://')) {
-        riskScore += 30;
-        indicators.push("Contains hyperlinks which might direct to malicious gateways.");
+        localRiskScore += 30;
+        localIndicators.push("Contains hyperlinks (potential phishing links)");
       }
       if (text.includes('urgent') || text.includes('immediate') || text.includes('freeze') || text.includes('suspend') || text.includes('lock')) {
-        riskScore += 25;
-        indicators.push("Contains urgent action words ('immediate', 'freeze', 'suspend') creating social panic.");
-        recommendations.push("Observe caution: urgent requests are common signatures of credit harvesting.");
+        localRiskScore += 25;
+        localIndicators.push("Urgent threat indicators or fear triggers");
       }
       if (text.includes('win') || text.includes('congratulations') || text.includes('prize') || text.includes('lottery') || text.includes('lucky')) {
-        riskScore += 20;
-        indicators.push("Promises financial or materialistic prizes ('congratulations', 'win').");
-        recommendations.push("Avoid clicking lottery references; companies do not raffle gifts through cold communication.");
+        localRiskScore += 20;
+        localIndicators.push("Greed triggers or prize-based vectors");
       }
 
-      let riskLevel: 'Safe' | 'Suspicious' | 'Danger' = 'Safe';
-      if (riskScore > 65) {
-        riskLevel = 'Danger';
-      } else if (riskScore > 30) {
-        riskLevel = 'Suspicious';
+      // Secure server-side call
+      const aiResponse = await aiService.analyzePhishing(messageText);
+
+      let uiRiskLevel: 'Safe' | 'Suspicious' | 'Danger' = 'Safe';
+      if (aiResponse.riskLevel === 'HIGH' || aiResponse.riskLevel === 'CRITICAL') {
+        uiRiskLevel = 'Danger';
+      } else if (aiResponse.riskLevel === 'MEDIUM') {
+        uiRiskLevel = 'Suspicious';
       }
 
-      finalEval = {
-        riskScore,
-        riskLevel,
-        indicators: indicators.length > 0 ? indicators : ["No standard automated indicators detected, verify sender credentials."],
-        recommendations,
-        explanation: `Automated rule matches flagged ${indicators.length} primary signature(s). The language patterns suggest a ${riskScore}% probability of threat manipulation.`
+      const compositeScore = Math.max(localRiskScore, aiResponse.confidence || 0);
+
+      const finalEval = {
+        riskScore: Math.min(compositeScore, 100),
+        riskLevel: uiRiskLevel,
+        indicators: Array.from(new Set(localIndicators.concat(aiResponse.indicators || []))),
+        recommendations: aiResponse.recommendations || [],
+        explanation: aiResponse.explanation,
+        aiData: aiResponse
       };
-    }
 
-    setTempMessageEval({ finalEval, messageText });
+      setTempMessageEval({ finalEval, messageText });
+    } catch (err: any) {
+      console.error("Phishing check failed:", err);
+      showToast('Scan Error', err.message || 'Could not complete security inspection.', 'danger');
+      setIsLoading(false);
+    }
   };
 
   const handleScanComplete = () => {
@@ -279,7 +274,7 @@ export const PhishingDetector: React.FC = () => {
                     Suspicious Indicators
                   </h4>
                   <ul className="space-y-2">
-                    {result.indicators.map((ind, idx) => (
+                    {result.indicators.map((ind: string, idx: number) => (
                       <li key={idx} className="flex gap-2 text-xs text-slate-655 dark:text-slate-300 leading-relaxed">
                         <span className="text-rose-500 font-bold mt-0.5">•</span>
                         <span>{ind}</span>
@@ -294,7 +289,7 @@ export const PhishingDetector: React.FC = () => {
                     Security Recommendations
                   </h4>
                   <ul className="space-y-2">
-                    {result.recommendations.map((rec, idx) => (
+                    {result.recommendations.map((rec: string, idx: number) => (
                       <li key={idx} className="flex gap-2 text-xs text-slate-655 dark:text-slate-300 leading-relaxed">
                         <span className="text-emerald-500 font-bold mt-0.5">✓</span>
                         <span>{rec}</span>
@@ -303,18 +298,35 @@ export const PhishingDetector: React.FC = () => {
                   </ul>
                 </div>
 
-                {/* AI Explanation Placeholder */}
-                <div className="p-4 bg-gradient-to-br from-indigo-500/5 to-slate-900/5 border border-indigo-500/10 rounded-xl relative overflow-hidden space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" />
-                    <span className="text-[10px] font-bold text-primary uppercase">AI Threat Explanation</span>
+                {/* AI Explanation Section */}
+                <div className="p-4 bg-gradient-to-br from-indigo-500/5 to-slate-900/5 border border-indigo-500/10 rounded-xl relative overflow-hidden space-y-3">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-[10px] font-bold text-primary uppercase">ShieldAI Threat Analysis</span>
+                    </div>
+                    <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                      Confidence: {result.aiData?.confidence ?? 100}%
+                    </span>
                   </div>
-                  <p className="text-[11px] text-slate-550 dark:text-slate-400 leading-relaxed">
+                  
+                  <p className="text-[11px] text-slate-550 dark:text-slate-400 leading-relaxed border-b border-slate-100 dark:border-slate-800/40 pb-2">
                     {result.explanation}
                   </p>
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-primary border border-primary/20 bg-primary/5 px-2 py-0.5 rounded w-fit mt-1">
-                    AI Integration Coming Soon
-                  </div>
+
+                  {result.aiData?.immediateActions && result.aiData.immediateActions.length > 0 && (
+                    <div className="p-2.5 bg-rose-500/5 border border-rose-500/10 rounded-lg space-y-1 text-left">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-rose-550 dark:text-rose-400">Immediate Actions</span>
+                      <div className="flex flex-col gap-1">
+                        {result.aiData.immediateActions.map((act: string, idx: number) => (
+                          <div key={idx} className="text-[10px] text-rose-600 dark:text-rose-455 font-semibold flex items-start gap-1">
+                            <span className="mt-0.5 text-rose-500 font-bold">!</span>
+                            <span>{act}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}

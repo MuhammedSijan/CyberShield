@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShieldCheck, AlertTriangle, ShieldAlert, 
-  UploadCloud, RefreshCw, File, Info
+  UploadCloud, RefreshCw, File, Info, Sparkles
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { useSecurity } from '../context/SecurityContext';
 import { StepProgressScanner } from '../components/common/StepProgressScanner';
+import { aiService } from '../services/ai/aiService';
 
 interface FileDetails {
   name: string;
@@ -25,6 +26,7 @@ export const FileSafetyAnalyzer: React.FC = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [tempFileEval, setTempFileEval] = useState<any>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [aiResult, setAiResult] = useState<any>(null);
 
   const { showToast } = useToast();
   const { addScan } = useSecurity();
@@ -39,6 +41,7 @@ export const FileSafetyAnalyzer: React.FC = () => {
   const handleFileAnalyze = async (file: File) => {
     setIsScanning(true);
     setFileDetails(null);
+    setAiResult(null);
 
     try {
       const nameParts = file.name.split('.');
@@ -52,13 +55,13 @@ export const FileSafetyAnalyzer: React.FC = () => {
 
       // 2. Perform risk scanning
       const warnings: string[] = [];
-      let riskScore = 5; // Base score
+      let localRiskScore = 5; // Base score
 
       // Executables check
       const executableExts = ['exe', 'apk', 'bat', 'com', 'cmd', 'sh', 'app', 'msi', 'jar', 'vbs'];
       const isExecutable = executableExts.includes(ext);
       if (isExecutable) {
-        riskScore += 55;
+        localRiskScore += 55;
         warnings.push("Executable Payload: This file contains binary installer payloads capable of executing local system modifications.");
       }
 
@@ -66,30 +69,42 @@ export const FileSafetyAnalyzer: React.FC = () => {
       const archiveExts = ['zip', 'rar', 'tar', 'gz', '7z', 'iso'];
       const isArchive = archiveExts.includes(ext);
       if (isArchive) {
-        riskScore += 15;
+        localRiskScore += 15;
         warnings.push("Compressed Archive Container: Contents are packed. Scan inside the package before running files.");
       }
 
       // Double extension check
       const isDoubleExtension = nameParts.length > 2;
       if (isDoubleExtension) {
-        riskScore += 30;
+        localRiskScore += 30;
         warnings.push(`Spoofed Extension Format: File is formatted with double indicators (${file.name}). This technique is commonly used to mask executables as media.`);
       }
 
       // Large file check
       if (fileSizeMB > 25) {
-        riskScore += 10;
+        localRiskScore += 10;
         warnings.push(`Large File Payload: File size exceeds 25 MB (${fileSizeMB.toFixed(2)} MB), which might bypass standard sandboxing scanners.`);
       }
 
-      // Determine level
-      let riskLevel: FileDetails['riskLevel'] = 'Safe';
-      if (riskScore >= 60) {
-        riskLevel = 'Danger';
-      } else if (riskScore >= 20) {
-        riskLevel = 'Suspicious';
+      // 3. Call secure backend proxy
+      const aiResponse = await aiService.analyzeFile({
+        name: file.name,
+        extension: ext ? `.${ext}` : '',
+        mimeType: mime,
+        size: file.size,
+        hash: hashHex
+      });
+
+      setAiResult(aiResponse);
+
+      let uiRiskLevel: FileDetails['riskLevel'] = 'Safe';
+      if (aiResponse.riskLevel === 'HIGH' || aiResponse.riskLevel === 'CRITICAL') {
+        uiRiskLevel = 'Danger';
+      } else if (aiResponse.riskLevel === 'MEDIUM') {
+        uiRiskLevel = 'Suspicious';
       }
+
+      const compositeScore = Math.max(localRiskScore, aiResponse.confidence || 0);
 
       const evalInfo: FileDetails = {
         name: file.name,
@@ -98,15 +113,16 @@ export const FileSafetyAnalyzer: React.FC = () => {
         size: file.size,
         hash: hashHex,
         lastModified: lastModDate,
-        warnings,
-        riskScore: Math.min(riskScore, 100),
-        riskLevel
+        warnings: Array.from(new Set(warnings.concat(aiResponse.indicators || []))),
+        riskScore: Math.min(compositeScore, 100),
+        riskLevel: uiRiskLevel
       };
 
       setTempFileEval({ file, evalInfo });
-    } catch (err) {
+    } catch (err: any) {
       setIsScanning(false);
-      showToast('Analysis Error', 'Failed to inspect file payload.', 'danger');
+      console.error("File analysis failed:", err);
+      showToast('Analysis Error', err.message || 'Failed to inspect file payload.', 'danger');
     }
   };
 
@@ -366,6 +382,53 @@ export const FileSafetyAnalyzer: React.FC = () => {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* AI Explanation Section */}
+                {aiResult && (
+                  <div className="p-4 bg-gradient-to-br from-indigo-500/5 to-slate-900/5 border border-indigo-500/10 rounded-xl relative overflow-hidden space-y-3">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-primary" />
+                        <span className="text-[10px] font-bold text-primary uppercase">ShieldAI Malware Analysis</span>
+                      </div>
+                      <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                        Confidence: {aiResult.confidence ?? 100}%
+                      </span>
+                    </div>
+                    
+                    <p className="text-[11px] text-slate-550 dark:text-slate-400 leading-relaxed border-b border-slate-100 dark:border-slate-800/40 pb-2">
+                      {aiResult.explanation}
+                    </p>
+
+                    {aiResult.recommendations && aiResult.recommendations.length > 0 && (
+                      <div className="space-y-1 text-left pt-1">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">AI Recommendations</span>
+                        <div className="flex flex-col gap-1">
+                          {aiResult.recommendations.map((rec: string, idx: number) => (
+                            <div key={idx} className="text-[10px] text-slate-500 dark:text-slate-400 flex items-start gap-1">
+                              <span className="text-emerald-500 mt-0.5">✓</span>
+                              <span>{rec}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {aiResult.immediateActions && aiResult.immediateActions.length > 0 && (
+                      <div className="p-2.5 bg-rose-500/5 border border-rose-500/10 rounded-lg space-y-1 text-left">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-rose-505 dark:text-rose-400">Immediate Hazards Remediation</span>
+                        <div className="flex flex-col gap-1">
+                          {aiResult.immediateActions.map((act: string, idx: number) => (
+                            <div key={idx} className="text-[10px] text-rose-600 dark:text-rose-455 font-semibold flex items-start gap-1">
+                              <span className="mt-0.5 text-rose-550 font-bold">!</span>
+                              <span>{act}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </motion.div>

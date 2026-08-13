@@ -8,6 +8,7 @@ import { useToast } from '../hooks/useToast';
 import { useSecurity } from '../context/SecurityContext';
 import { SkeletonLoader } from '../components/common/SkeletonLoader';
 import { StepProgressScanner } from '../components/common/StepProgressScanner';
+import { aiService } from '../services/ai/aiService';
 
 export const PasswordChecker: React.FC = () => {
   const [password, setPassword] = useState('');
@@ -16,6 +17,7 @@ export const PasswordChecker: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [suggestions, setSuggestions] = useState<Array<{ password: string; explanation: string }>>([]);
+  const [aiResult, setAiResult] = useState<any>(null);
   const { showToast } = useToast();
   const { addScan } = useSecurity();
 
@@ -144,7 +146,7 @@ export const PasswordChecker: React.FC = () => {
     }
   }, [metrics.strength]);
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (!password.trim()) {
       showToast('Input Required', 'Please enter a password to evaluate.', 'warning');
       return;
@@ -153,6 +155,30 @@ export const PasswordChecker: React.FC = () => {
     setTempPassword(password);
     setIsAnalyzing(true);
     setShowResults(false);
+
+    try {
+      // Send only derived characteristics to protect privacy
+      const aiResponse = await aiService.explainPassword({
+        length: password.length,
+        hasUppercase: /[A-Z]/.test(password),
+        hasLowercase: /[a-z]/.test(password),
+        hasNumbers: /[0-9]/.test(password),
+        hasSymbols: /[^A-Za-z0-9]/.test(password),
+        score: metrics.score,
+        strength: metrics.strength,
+        noRepeats: metrics.noRepeats,
+        noCommonWords: metrics.noCommonWords
+      });
+
+      setAiResult(aiResponse);
+    } catch (err: any) {
+      console.error("AI password checks failed:", err);
+      setAiResult({
+        explanation: `Password strength: ${metrics.strength}. Locally evaluated entropy score: ${metrics.score}/100. AI advisor was unavailable.`,
+        indicators: [],
+        recommendations: ["Ensure password is not reused across sites."]
+      });
+    }
   };
 
   const handleScanComplete = () => {
@@ -301,26 +327,72 @@ export const PasswordChecker: React.FC = () => {
                   </div>
                 </div>
 
-                {/* TIPS CARD */}
-                <div className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-4">
-                  <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    <Key className="h-4 w-4 text-primary" /> Tips to Create Strong Passwords
-                  </h3>
-                  <ul className="space-y-3 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    <li className="flex gap-2">
-                      <span className="text-primary font-bold">•</span>
-                      <span><strong className="text-slate-750 dark:text-slate-350">Use Passphrases:</strong> Combine three or four random words (e.g. <code className="px-1.5 py-0.5 rounded bg-slate-105 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono">correcthorsebatterystaple</code>). They are hard for machines to guess but easy for you to visualize.</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-primary font-bold">•</span>
-                      <span><strong className="text-slate-750 dark:text-slate-350">Avoid Personal Info:</strong> Do not include birth years, pet names, addresses, or usernames. Attacks scan your social profile to run targeted dictionary attacks.</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-primary font-bold">•</span>
-                      <span><strong className="text-slate-750 dark:text-slate-350">Never Reuse:</strong> If a hacker steals your password from one minor site breach, they will immediately test it on your emails and bank logins.</span>
-                    </li>
-                  </ul>
-                </div>
+                {/* AI ASSESSMENT OR TIPS CARD */}
+                {aiResult ? (
+                  <div className="p-5 bg-gradient-to-br from-indigo-500/5 to-slate-900/5 border border-indigo-500/10 rounded-2xl relative overflow-hidden space-y-3">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <h3 className="font-bold text-slate-800 dark:text-white text-sm uppercase tracking-wider">ShieldAI Threat Analysis</h3>
+                      </div>
+                      <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                        Entropy Score: {metrics.score}%
+                      </span>
+                    </div>
+                    
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed border-b border-slate-100 dark:border-slate-800/40 pb-2.5">
+                      {aiResult.explanation}
+                    </p>
+
+                    {aiResult.indicators && aiResult.indicators.length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-rose-505 dark:text-rose-400">Security Warning Indicators</span>
+                        <div className="flex flex-col gap-1">
+                          {aiResult.indicators.map((ind: string, idx: number) => (
+                            <div key={idx} className="text-xs text-slate-500 dark:text-slate-400 flex items-start gap-1">
+                              <span className="text-rose-500 mt-0.5">•</span>
+                              <span>{ind}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {aiResult.recommendations && aiResult.recommendations.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Recommended Password Strategy</span>
+                        <div className="flex flex-col gap-1">
+                          {aiResult.recommendations.map((rec: string, idx: number) => (
+                            <div key={idx} className="text-xs text-slate-500 dark:text-slate-400 flex items-start gap-1">
+                              <span className="text-emerald-500 mt-0.5">✓</span>
+                              <span>{rec}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-4">
+                    <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <Key className="h-4 w-4 text-primary" /> Tips to Create Strong Passwords
+                    </h3>
+                    <ul className="space-y-3 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                      <li className="flex gap-2">
+                        <span className="text-primary font-bold">•</span>
+                        <span><strong className="text-slate-750 dark:text-slate-350">Use Passphrases:</strong> Combine three or four random words (e.g. <code className="px-1.5 py-0.5 rounded bg-slate-105 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono">correcthorsebatterystaple</code>). They are hard for machines to guess but easy for you to visualize.</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-primary font-bold">•</span>
+                        <span><strong className="text-slate-750 dark:text-slate-350">Avoid Personal Info:</strong> Do not include birth years, pet names, addresses, or usernames. Attacks scan your social profile to run targeted dictionary attacks.</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-primary font-bold">•</span>
+                        <span><strong className="text-slate-750 dark:text-slate-350">Never Reuse:</strong> If a hacker steals your password from one minor site breach, they will immediately test it on your emails and bank logins.</span>
+                      </li>
+                    </ul>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

@@ -124,20 +124,26 @@ export const CyberBackground: React.FC = () => {
       // 2. Draw Soft Ambient Glow Spots (Dark mode only)
       if (isDark && !isPerfSetting) {
         lights.forEach(l => {
+          if (l.radius <= 10) return; // Prevent start radius 10 >= end radius l.radius
+
           l.x += l.vx;
           l.y += l.vy;
 
           if (l.x < 0 || l.x > width) l.vx *= -1;
           if (l.y < 0 || l.y > height) l.vy *= -1;
 
-          const glowGrad = ctx.createRadialGradient(l.x, l.y, 10, l.x, l.y, l.radius);
-          glowGrad.addColorStop(0, 'rgba(37, 99, 235, 0.02)');
-          glowGrad.addColorStop(1, 'rgba(37, 99, 235, 0)');
+          try {
+            const glowGrad = ctx.createRadialGradient(l.x, l.y, 10, l.x, l.y, l.radius);
+            glowGrad.addColorStop(0, 'rgba(37, 99, 235, 0.02)');
+            glowGrad.addColorStop(1, 'rgba(37, 99, 235, 0)');
 
-          ctx.beginPath();
-          ctx.arc(l.x, l.y, l.radius, 0, Math.PI * 2);
-          ctx.fillStyle = glowGrad;
-          ctx.fill();
+            ctx.beginPath();
+            ctx.arc(l.x, l.y, l.radius, 0, Math.PI * 2);
+            ctx.fillStyle = glowGrad;
+            ctx.fill();
+          } catch (e) {
+            console.error("Glow gradient draw failed:", e);
+          }
         });
       }
 

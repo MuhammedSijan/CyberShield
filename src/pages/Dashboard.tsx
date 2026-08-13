@@ -1,19 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  Play, Trash2, MessageSquare, Globe, Key, QrCode, Award, Shield, RotateCw 
+  Play, Trash2, MessageSquare, Globe, Key, QrCode, Award, Shield, RotateCw, Sparkles, Activity, ShieldAlert
 } from 'lucide-react';
 import { useSecurity } from '../context/SecurityContext';
 import type { ScanItem } from '../context/SecurityContext';
 import { generatePDFReport } from '../utils/pdfReport';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../hooks/useToast';
+import { aiService } from '../services/ai/aiService';
 
 export const Dashboard: React.FC = () => {
   const { scans, clearScans, getSafetyScore } = useSecurity();
   const { user, sessionStartTime } = useAuth();
   const { showToast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [aiBrief, setAiBrief] = useState<any>(null);
+  const [isBriefLoading, setIsBriefLoading] = useState(false);
+
+  const safetyScore = getSafetyScore();
+
+  useEffect(() => {
+    if (scans.length === 0) {
+      setAiBrief(null);
+      return;
+    }
+
+    const loadAdvisory = async () => {
+      setIsBriefLoading(true);
+      try {
+        const brief = await aiService.getSecurityAdvisory(scans, safetyScore);
+        setAiBrief(brief);
+      } catch (err) {
+        console.error("Failed to load security posture brief:", err);
+      } finally {
+        setIsBriefLoading(false);
+      }
+    };
+
+    loadAdvisory();
+  }, [scans, safetyScore]);
 
   const getToolIcon = (type: ScanItem['type']) => {
     switch (type) {
@@ -87,8 +113,6 @@ export const Dashboard: React.FC = () => {
   const avgQuizScore = quizAttempts > 0 
     ? Math.round(quizScans.reduce((acc, curr) => acc + (100 - curr.riskScore), 0) / quizAttempts) 
     : 0;
-
-  const safetyScore = getSafetyScore();
 
   const toolCounts: Record<string, number> = {};
   scans.forEach(scan => {
@@ -184,6 +208,81 @@ export const Dashboard: React.FC = () => {
           >
             <Trash2 className="h-4 w-4" /> Clear Local Report
           </button>
+        </div>
+      </div>
+
+      {/* AI SECURITY POSTURE BRIEF */}
+      <div className="glass-panel p-6 rounded-2xl border-primary/20 bg-gradient-to-r from-primary/5 via-transparent to-transparent relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+          <Sparkles className="h-32 w-32 text-primary" />
+        </div>
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary animate-pulse-glow" />
+            <h2 className="text-sm font-extrabold uppercase tracking-wider text-primary">ShieldAI Security Briefing</h2>
+          </div>
+
+          {isBriefLoading ? (
+            <div className="space-y-2.5">
+              <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded animate-pulse w-3/4" />
+              <div className="h-3.5 bg-slate-200 dark:bg-slate-800 rounded animate-pulse w-5/6" />
+              <div className="h-3.5 bg-slate-200 dark:bg-slate-800 rounded animate-pulse w-2/3" />
+            </div>
+          ) : aiBrief ? (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <h3 className="text-lg font-extrabold text-slate-850 dark:text-white leading-relaxed">
+                  {aiBrief.summary}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-4xl">
+                  {aiBrief.explanation}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                {aiBrief.indicators && aiBrief.indicators.length > 0 && (
+                  <div className="p-4 bg-rose-500/5 border border-rose-500/10 rounded-xl space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-505 dark:text-rose-400 flex items-center gap-1.5">
+                      <ShieldAlert className="h-4 w-4 text-rose-500" /> Focus Threat Areas
+                    </span>
+                    <div className="flex flex-col gap-1.5">
+                      {aiBrief.indicators.map((ind: string, idx: number) => (
+                        <div key={idx} className="text-xs text-slate-500 dark:text-slate-400 flex items-start gap-1">
+                          <span className="text-rose-500 mt-0.5">•</span>
+                          <span>{ind}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {aiBrief.recommendations && aiBrief.recommendations.length > 0 && (
+                  <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
+                      <Activity className="h-4 w-4 text-emerald-500" /> Actionable Mitigations
+                    </span>
+                    <div className="flex flex-col gap-1.5">
+                      {aiBrief.recommendations.map((rec: string, idx: number) => (
+                        <div key={idx} className="text-xs text-slate-500 dark:text-slate-400 flex items-start gap-1">
+                          <span className="text-emerald-500 mt-0.5">✓</span>
+                          <span>{rec}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="py-2">
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Run your first security audits in the Security Hub to enable ShieldAI security advisories.
+              </p>
+              <Link to="/hub" className="text-xs text-primary font-bold hover:underline inline-flex items-center gap-1 mt-2">
+                Go to Security Hub <Play className="h-3 w-3 fill-current" />
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 

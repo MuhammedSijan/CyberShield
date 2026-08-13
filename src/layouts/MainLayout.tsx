@@ -4,6 +4,7 @@ import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { Navbar } from '../components/common/Navbar';
 import { Footer } from '../components/common/Footer';
 import { CyberBackground } from '../components/common/CyberBackground';
+import { ShieldAssistant } from '../components/common/ShieldAssistant';
 
 export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -79,6 +80,9 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
 
         {/* Footer */}
         <Footer />
+
+        {/* Floating AI Security Assistant Widget */}
+        <ShieldAssistant />
       </div>
     </MotionConfig>
   );

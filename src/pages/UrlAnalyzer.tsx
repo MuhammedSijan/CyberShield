@@ -6,18 +6,17 @@ import {
   RefreshCw, ShieldAlert, Sparkles,
   Link as LinkIcon, Server, ShieldCheck as LockIcon, Hash
 } from 'lucide-react';
-import { urlSamples } from '../data/mockData';
-import type { UrlMockSample } from '../data/mockData';
 import { useToast } from '../hooks/useToast';
 import { useSecurity } from '../context/SecurityContext';
 import { StepProgressScanner } from '../components/common/StepProgressScanner';
+import { aiService } from '../services/ai/aiService';
 
 export const UrlAnalyzer: React.FC = () => {
   const [urlInput, setUrlInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [tempUrlEval, setTempUrlEval] = useState<any>(null);
   const [showResults, setShowResults] = useState(false);
-  const [result, setResult] = useState<UrlMockSample['evaluation'] | null>(null);
+  const [result, setResult] = useState<any | null>(null);
   const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const { addScan } = useSecurity();
@@ -28,23 +27,14 @@ export const UrlAnalyzer: React.FC = () => {
     setShowResults(false);
   };
 
-  const executeAnalysis = (url: string, isAuto = false) => {
+  const executeAnalysis = async (url: string, isAuto = false) => {
     setIsLoading(true);
     setResult(null);
     setShowResults(false);
 
-    const cleanUrl = url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-    const matchedKey = Object.keys(urlSamples).find(key => 
-      url.toLowerCase().includes(key) || cleanUrl.toLowerCase().includes(key)
-    );
-
-    let finalEval: UrlMockSample['evaluation'];
-
-    if (matchedKey) {
-      finalEval = urlSamples[matchedKey].evaluation;
-    } else {
+    try {
       const lowerUrl = url.toLowerCase();
-      let riskScore = 10;
+      let localRiskScore = 10;
       let hasHttps = lowerUrl.startsWith('https://');
       const keywords = ['paypal', 'secure', 'bank', 'login', 'update', 'verify', 'account', 'signin', 'support', 'recovery'];
       const foundKeywords = keywords.filter(kw => lowerUrl.includes(kw));
@@ -54,29 +44,45 @@ export const UrlAnalyzer: React.FC = () => {
       const subCount = subdomains > 0 ? subdomains : 0;
       const typosquatting = lowerUrl.includes('0') || lowerUrl.includes('rn') || lowerUrl.includes('vv') || lowerUrl.includes('g00g') || lowerUrl.includes('paypaI');
 
-      if (!hasHttps) riskScore += 25;
-      if (foundKeywords.length > 0) riskScore += foundKeywords.length * 15;
-      if (isIp) riskScore += 35;
-      if (typosquatting) riskScore += 30;
-      if (subCount > 3) riskScore += 20;
+      if (!hasHttps) localRiskScore += 25;
+      if (foundKeywords.length > 0) localRiskScore += foundKeywords.length * 15;
+      if (isIp) localRiskScore += 35;
+      if (typosquatting) localRiskScore += 30;
+      if (subCount > 3) localRiskScore += 20;
 
-      const riskLevel = riskScore > 60 ? 'Danger' : riskScore > 25 ? 'Suspicious' : 'Safe';
+      // Call AI Service which handles backend functions securely
+      const aiResponse = await aiService.analyzeUrl(url);
 
-      finalEval = {
-        riskScore: Math.min(riskScore, 100),
-        riskLevel,
+      let uiRiskLevel: 'Safe' | 'Suspicious' | 'Danger' = 'Safe';
+      if (aiResponse.riskLevel === 'HIGH' || aiResponse.riskLevel === 'CRITICAL') {
+        uiRiskLevel = 'Danger';
+      } else if (aiResponse.riskLevel === 'MEDIUM') {
+        uiRiskLevel = 'Suspicious';
+      }
+
+      // Determine composite score
+      const compositeScore = Math.max(localRiskScore, aiResponse.confidence || 0);
+
+      const finalEval = {
+        riskScore: Math.min(compositeScore, 100),
+        riskLevel: uiRiskLevel,
         hasHttps,
         domainLength: cleanHost.length,
         suspiciousKeywords: foundKeywords,
         isIpAddress: isIp,
         typosquattingDetected: typosquatting,
         subdomainCount: subCount,
-        explanation: `URL evaluated client-side. Casing keywords matched: ${foundKeywords.length}. Protocol matches standard configurations: ${hasHttps ? 'Yes (HTTPS)' : 'No (HTTP)'}.`
+        explanation: aiResponse.explanation,
+        aiData: aiResponse
       };
-    }
 
-    // Save calculated metrics
-    setTempUrlEval({ url, isAuto, finalEval });
+      // Save calculated metrics
+      setTempUrlEval({ url, isAuto, finalEval });
+    } catch (err: any) {
+      console.error("URL scan failed:", err);
+      showToast('Scan Error', err.message || 'Could not complete security inspection.', 'danger');
+      setIsLoading(false);
+    }
   };
 
   const handleScanComplete = () => {
@@ -344,7 +350,7 @@ export const UrlAnalyzer: React.FC = () => {
                       Flagged Brand Keywords
                     </span>
                     <div className="flex flex-wrap gap-1.5">
-                      {result.suspiciousKeywords.map((kw, idx) => (
+                      {result.suspiciousKeywords.map((kw: string, idx: number) => (
                         <span key={idx} className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-500 border border-rose-500/20 uppercase font-bold">
                           {kw}
                         </span>
@@ -353,18 +359,63 @@ export const UrlAnalyzer: React.FC = () => {
                   </div>
                 )}
 
-                {/* AI Explanation Placeholder */}
-                <div className="p-4 bg-gradient-to-br from-indigo-500/5 to-slate-900/5 border border-indigo-500/10 rounded-xl relative overflow-hidden space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" />
-                    <span className="text-[10px] font-bold text-primary uppercase">AI Threat Explanation</span>
+                {/* AI Explanation Section */}
+                <div className="p-4 bg-gradient-to-br from-indigo-500/5 to-slate-900/5 border border-indigo-500/10 rounded-xl relative overflow-hidden space-y-3">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-[10px] font-bold text-primary uppercase">ShieldAI Threat Analysis</span>
+                    </div>
+                    <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                      Confidence: {result.aiData?.confidence ?? 100}%
+                    </span>
                   </div>
-                  <p className="text-[11px] text-slate-550 dark:text-slate-400 leading-relaxed">
+                  
+                  <p className="text-[11px] text-slate-550 dark:text-slate-400 leading-relaxed border-b border-slate-100 dark:border-slate-800/40 pb-2">
                     {result.explanation}
                   </p>
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-primary border border-primary/20 bg-primary/5 px-2 py-0.5 rounded w-fit mt-1">
-                    AI Integration Coming Soon
-                  </div>
+
+                  {result.aiData?.indicators && result.aiData.indicators.length > 0 && (
+                    <div className="space-y-1 text-left">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-rose-505 dark:text-rose-400">AI Warning Flags</span>
+                      <div className="flex flex-col gap-1">
+                        {result.aiData.indicators.map((ind: string, idx: number) => (
+                          <div key={idx} className="text-[10px] text-slate-500 dark:text-slate-400 flex items-start gap-1">
+                            <span className="text-rose-500 mt-0.5">•</span>
+                            <span>{ind}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {result.aiData?.recommendations && result.aiData.recommendations.length > 0 && (
+                    <div className="space-y-1 text-left pt-1">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">AI Recommendations</span>
+                      <div className="flex flex-col gap-1">
+                        {result.aiData.recommendations.map((rec: string, idx: number) => (
+                          <div key={idx} className="text-[10px] text-slate-500 dark:text-slate-400 flex items-start gap-1">
+                            <span className="text-emerald-500 mt-0.5">✓</span>
+                            <span>{rec}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {result.aiData?.immediateActions && result.aiData.immediateActions.length > 0 && (
+                    <div className="p-2.5 bg-rose-500/5 border border-rose-500/10 rounded-lg space-y-1 text-left">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-rose-500 dark:text-rose-450">Immediate Hazards Remediation</span>
+                      <div className="flex flex-col gap-1">
+                        {result.aiData.immediateActions.map((act: string, idx: number) => (
+                          <div key={idx} className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold flex items-start gap-1">
+                            <span className="mt-0.5 text-rose-500 font-bold">!</span>
+                            <span>{act}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
