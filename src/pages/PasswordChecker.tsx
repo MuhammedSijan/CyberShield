@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Key, ShieldCheck, ShieldAlert, Eye, EyeOff, 
-  Copy, RefreshCw, Check, X, Sparkles, Info
+import {
+  Key, Eye, EyeOff,
+  Copy, Check, X, Sparkles, Lock, Clock
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { useSecurity } from '../context/SecurityContext';
-import { SkeletonLoader } from '../components/common/SkeletonLoader';
 import { StepProgressScanner } from '../components/common/StepProgressScanner';
 import { aiService } from '../services/ai/aiService';
 
@@ -57,8 +56,8 @@ export const PasswordChecker: React.FC = () => {
     const lower = /[a-z]/.test(pwd);
     const number = /[0-9]/.test(pwd);
     const special = /[^A-Za-z0-9]/.test(pwd);
-    
-    // Repeated pattern check (e.g. "aaaa" or "123123")
+
+    // Repeated pattern check
     const repeats = /(.)\1{3,}/.test(pwd) || (pwd.length >= 6 && pwd.substring(0, pwd.length / 2) === pwd.substring(pwd.length / 2));
     const noRepeats = !repeats;
 
@@ -66,9 +65,9 @@ export const PasswordChecker: React.FC = () => {
     const commonWords = ['password', '123456', 'admin', 'qwerty', 'security', 'sijan', 'cybershield', 'welcome', 'letmein'];
     const noCommonWords = !commonWords.some(w => pwd.toLowerCase().includes(w));
 
-    // Calculate score (out of 100)
+    // Calculate score
     let score = 0;
-    if (pwd.length > 0) score += Math.min(pwd.length * 4, 30); // Max 30 points for length
+    if (pwd.length > 0) score += Math.min(pwd.length * 4, 30);
     if (upper) score += 10;
     if (lower) score += 10;
     if (number) score += 15;
@@ -81,7 +80,7 @@ export const PasswordChecker: React.FC = () => {
     let strength: 'Weak' | 'Medium' | 'Strong' | 'Very Strong' = 'Weak';
 
     if (score >= 90) {
-      timeToCrack = '400,000 Years';
+      timeToCrack = '400,000+ Years';
       strength = 'Very Strong';
     } else if (score >= 70) {
       timeToCrack = '8 Years';
@@ -110,7 +109,6 @@ export const PasswordChecker: React.FC = () => {
 
   useEffect(() => {
     checkPassword(password);
-    // Hide results if input changes to require re-analysis
     setShowResults(false);
   }, [password]);
 
@@ -125,16 +123,11 @@ export const PasswordChecker: React.FC = () => {
     return result;
   };
 
-  // Generate suggestions if strength is not Strong or Very Strong
   const generateSuggestions = () => {
-    const newSuggestions = Array.from({ length: 5 }).map(() => {
-      const pwdVal = generateRandomPassword(16);
-      return {
-        password: pwdVal,
-        explanation: "Cryptographically secure random character alignment with high entropy."
-      };
-    });
-
+    const newSuggestions = Array.from({ length: 4 }).map(() => ({
+      password: generateRandomPassword(16),
+      explanation: "Cryptographically random high-entropy passphrase."
+    }));
     setSuggestions(newSuggestions);
   };
 
@@ -158,26 +151,22 @@ export const PasswordChecker: React.FC = () => {
 
     try {
       // Send only derived characteristics to protect privacy
-      const aiResponse = await aiService.explainPassword({
+      const derivedSummary = {
         length: password.length,
-        hasUppercase: /[A-Z]/.test(password),
-        hasLowercase: /[a-z]/.test(password),
-        hasNumbers: /[0-9]/.test(password),
-        hasSymbols: /[^A-Za-z0-9]/.test(password),
+        hasUppercase: metrics.upper,
+        hasLowercase: metrics.lower,
+        hasNumbers: metrics.number,
+        hasSymbols: metrics.special,
         score: metrics.score,
         strength: metrics.strength,
         noRepeats: metrics.noRepeats,
         noCommonWords: metrics.noCommonWords
-      });
+      };
 
+      const aiResponse = await aiService.explainPassword(derivedSummary);
       setAiResult(aiResponse);
     } catch (err: any) {
-      console.error("AI password checks failed:", err);
-      setAiResult({
-        explanation: `Password strength: ${metrics.strength}. Locally evaluated entropy score: ${metrics.score}/100. AI advisor was unavailable.`,
-        indicators: [],
-        recommendations: ["Ensure password is not reused across sites."]
-      });
+      console.error("AI password assessment failed:", err);
     }
   };
 
@@ -185,335 +174,224 @@ export const PasswordChecker: React.FC = () => {
     setIsAnalyzing(false);
     setShowResults(true);
 
-    const riskLevel = metrics.strength === 'Very Strong' || metrics.strength === 'Strong'
-      ? 'Safe' 
-      : metrics.strength === 'Medium' 
-      ? 'Suspicious' 
-      : 'Danger';
+    let riskLevel: 'Safe' | 'Suspicious' | 'Danger' = 'Safe';
+    if (metrics.strength === 'Weak') riskLevel = 'Danger';
+    else if (metrics.strength === 'Medium') riskLevel = 'Suspicious';
 
-    const riskScore = 100 - metrics.score;
+    const maskedPwd = tempPassword.length > 3
+      ? `${tempPassword.substring(0, 1)}***${tempPassword.substring(tempPassword.length - 1)}`
+      : '***';
 
-    // Add to context safely - mask password length to preserve absolute privacy
-    addScan('password', `${tempPassword.length}-char password`, metrics.strength, riskScore, riskLevel);
-    showToast('Analysis Completed', 'Password health evaluated locally.', 'success');
+    addScan('password', maskedPwd, `${metrics.strength} (${metrics.score}%)`, 100 - metrics.score, riskLevel);
+    showToast('Analysis Completed', 'Credential complexity verified locally.', 'success');
   };
-
-
 
   const handleCopy = (val: string) => {
     navigator.clipboard.writeText(val);
-    showToast('Copied to Clipboard', 'Secure passphrase copied successfully.', 'success');
+    showToast('Copied to Clipboard', 'Passphrase copied to clipboard.', 'success');
   };
 
   const getStrengthStyles = (strength: string) => {
     switch (strength) {
       case 'Very Strong':
-        return { color: 'text-emerald-500', bg: 'bg-emerald-500', bar: 'w-full bg-emerald-500' };
+        return { color: 'text-emerald-700 dark:text-emerald-400', bar: 'bg-emerald-500' };
       case 'Strong':
-        return { color: 'text-blue-500', bg: 'bg-blue-500', bar: 'w-3/4 bg-blue-500' };
+        return { color: 'text-blue-700 dark:text-blue-400', bar: 'bg-blue-500' };
       case 'Medium':
-        return { color: 'text-amber-500', bg: 'bg-amber-500', bar: 'w-1/2 bg-amber-500' };
+        return { color: 'text-amber-700 dark:text-amber-400', bar: 'bg-amber-500' };
       default:
-        return { color: 'text-rose-500', bg: 'bg-rose-500', bar: 'w-1/4 bg-rose-500' };
+        return { color: 'text-rose-700 dark:text-rose-400', bar: 'bg-rose-500' };
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 py-4">
+    <div className="max-w-5xl mx-auto space-y-8 py-4 text-left">
       {/* HEADER */}
-      <div>
-        <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white">Password Health Checker</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">
-          Verify password security strength client-side. Evaluate character complexities and generate safe alternatives.
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-6 space-y-1.5">
+        <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-amber-700 dark:text-amber-300 text-xs font-semibold">
+          <Key className="h-3.5 w-3.5" />
+          <span>Credential Health Inspector</span>
+        </div>
+        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          Password Health Checker
+        </h1>
+        <p className="text-sm text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
+          Evaluate password complexity, brute-force resistance, and entropy bits locally. Passwords never leave your device.
         </p>
       </div>
 
-      {/* PRIVACY WARNING NOTICE */}
-      <div className="p-4 rounded-xl border border-blue-500/25 bg-blue-500/10 dark:bg-blue-500/5 flex items-start gap-3">
-        <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
-        <div className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-          <span className="font-bold text-slate-800 dark:text-white">🔒 Privacy Notice:</span> Your password is analyzed locally in your browser and is never stored or transmitted.
+      {/* PRIVACY BADGE */}
+      <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 flex items-start gap-3">
+        <Lock className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+        <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+          <strong className="text-slate-900 dark:text-white">Local Verification Guarantee:</strong> Your password is evaluated locally using browser cryptographic APIs. Cleartext is never transmitted across the network or stored in databases.
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* INPUT BOX */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* INPUT & RESULTS (7 cols) */}
+        <div className="lg:col-span-7 space-y-6">
           {isAnalyzing ? (
             <StepProgressScanner onComplete={handleScanComplete} />
           ) : (
-            <div className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-5">
-              <h3 className="font-bold text-slate-800 dark:text-slate-200">Enter Password</h3>
-              
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                Enter Password to Evaluate
+              </h2>
+
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Type your password..."
-                  className="w-full pl-4 pr-12 py-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50 text-slate-850 dark:text-slate-200 text-sm focus:outline-none focus:border-primary font-mono tracking-wider transition-colors placeholder-slate-400 dark:placeholder-slate-655"
+                  onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
+                  placeholder="Type a password to test..."
+                  className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-mono tracking-wider transition-all placeholder-slate-400 dark:placeholder-slate-500"
                 />
                 <button
+                  type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-3.5 text-slate-455 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
 
-              <button
-                onClick={handleAnalyze}
-                disabled={isAnalyzing || !password.trim()}
-                className="w-full py-3 bg-primary hover:bg-primary-dark disabled:bg-primary/50 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-primary/10 flex items-center justify-center gap-1.5"
-              >
-                {isAnalyzing ? 'Evaluating Security...' : 'Analyze Password'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAnalyze}
+                  disabled={isAnalyzing || !password.trim()}
+                  className="flex-1 py-2.5 bg-primary hover:bg-primary-dark disabled:bg-primary/50 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5"
+                >
+                  Analyze Complexity
+                </button>
+              </div>
             </div>
           )}
 
-          {/* CHECKLIST (REVEAL ON ANALYZE) */}
+          {/* CHECKLIST & METRICS */}
           <AnimatePresence>
             {showResults && (
               <motion.div
-                initial={{ opacity: 0, y: 15 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                className="space-y-6"
+                exit={{ opacity: 0, y: -10 }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-5"
               >
-                <div className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-5">
-                  {/* STRENGTH PROGRESS BAR */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-semibold">
-                      <span className="text-slate-500 dark:text-slate-400">Complexity Score</span>
-                      <span className={`${getStrengthStyles(metrics.strength).color} font-bold`}>
-                        {metrics.strength} ({metrics.score}/100)
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-300 ${getStrengthStyles(metrics.strength).bar}`}
-                        style={{ width: `${metrics.score}%` }}
-                      />
-                    </div>
+                {/* Score & Time to crack */}
+                <div className="grid grid-cols-2 gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">
+                      Complexity Score
+                    </span>
+                    <p className={`text-xl font-bold ${getStrengthStyles(metrics.strength).color}`}>
+                      {metrics.strength} ({metrics.score}/100)
+                    </p>
                   </div>
-
-                  {/* CHECKLIST */}
-                  <div className="space-y-3 pt-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                      Complexity Checklist
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {[
-                        { check: metrics.length, label: "Minimum 12 characters" },
-                        { check: metrics.upper, label: "Uppercase letters (A-Z)" },
-                        { check: metrics.lower, label: "Lowercase letters (a-z)" },
-                        { check: metrics.number, label: "Numbers (0-9)" },
-                        { check: metrics.special, label: "Special characters (!@#$)" },
-                        { check: metrics.noRepeats, label: "No repeated patterns" },
-                        { check: metrics.noCommonWords, label: "No common words" }
-                      ].map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2.5 text-xs">
-                          {item.check ? (
-                            <Check className="h-4.5 w-4.5 text-emerald-500 shrink-0" />
-                          ) : (
-                            <X className="h-4.5 w-4.5 text-slate-350 dark:text-slate-700 shrink-0" />
-                          )}
-                          <span className={item.check ? 'text-slate-800 dark:text-slate-200 font-medium' : 'text-slate-400 dark:text-slate-500'}>
-                            {item.label}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">
+                      Estimated Crack Time
+                    </span>
+                    <p className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Clock className="h-4 w-4 text-slate-400" />
+                      <span>{metrics.timeToCrack}</span>
+                    </p>
                   </div>
                 </div>
 
-                {/* AI ASSESSMENT OR TIPS CARD */}
-                {aiResult ? (
-                  <div className="p-5 bg-gradient-to-br from-indigo-500/5 to-slate-900/5 border border-indigo-500/10 rounded-2xl relative overflow-hidden space-y-3">
-                    <div className="flex items-center justify-between gap-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <Sparkles className="h-4 w-4 text-primary" />
-                        <h3 className="font-bold text-slate-800 dark:text-white text-sm uppercase tracking-wider">ShieldAI Threat Analysis</h3>
-                      </div>
-                      <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
-                        Entropy Score: {metrics.score}%
-                      </span>
-                    </div>
-                    
-                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed border-b border-slate-100 dark:border-slate-800/40 pb-2.5">
-                      {aiResult.explanation}
-                    </p>
+                {/* Progress bar */}
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${getStrengthStyles(metrics.strength).bar}`}
+                    style={{ width: `${metrics.score}%` }}
+                  />
+                </div>
 
-                    {aiResult.indicators && aiResult.indicators.length > 0 && (
-                      <div className="space-y-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-rose-505 dark:text-rose-400">Security Warning Indicators</span>
-                        <div className="flex flex-col gap-1">
-                          {aiResult.indicators.map((ind: string, idx: number) => (
-                            <div key={idx} className="text-xs text-slate-500 dark:text-slate-400 flex items-start gap-1">
-                              <span className="text-rose-500 mt-0.5">•</span>
-                              <span>{ind}</span>
-                            </div>
-                          ))}
-                        </div>
+                {/* Checklist */}
+                <div className="space-y-2.5 pt-1">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Security Requirements
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {[
+                      { check: metrics.length, label: "Minimum 12 characters" },
+                      { check: metrics.upper, label: "Uppercase letters (A-Z)" },
+                      { check: metrics.lower, label: "Lowercase letters (a-z)" },
+                      { check: metrics.number, label: "Numbers (0-9)" },
+                      { check: metrics.special, label: "Special characters (!@#$)" },
+                      { check: metrics.noRepeats, label: "No repeated patterns" },
+                      { check: metrics.noCommonWords, label: "No dictionary words" }
+                    ].map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-xs">
+                        {item.check ? (
+                          <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        ) : (
+                          <X className="h-4 w-4 text-slate-400 shrink-0" />
+                        )}
+                        <span className={item.check ? 'text-slate-800 dark:text-slate-200 font-medium' : 'text-slate-500 dark:text-slate-500'}>
+                          {item.label}
+                        </span>
                       </div>
-                    )}
-
-                    {aiResult.recommendations && aiResult.recommendations.length > 0 && (
-                      <div className="space-y-1.5 pt-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Recommended Password Strategy</span>
-                        <div className="flex flex-col gap-1">
-                          {aiResult.recommendations.map((rec: string, idx: number) => (
-                            <div key={idx} className="text-xs text-slate-500 dark:text-slate-400 flex items-start gap-1">
-                              <span className="text-emerald-500 mt-0.5">✓</span>
-                              <span>{rec}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    ))}
                   </div>
-                ) : (
-                  <div className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-4">
-                    <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      <Key className="h-4 w-4 text-primary" /> Tips to Create Strong Passwords
-                    </h3>
-                    <ul className="space-y-3 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                      <li className="flex gap-2">
-                        <span className="text-primary font-bold">•</span>
-                        <span><strong className="text-slate-750 dark:text-slate-350">Use Passphrases:</strong> Combine three or four random words (e.g. <code className="px-1.5 py-0.5 rounded bg-slate-105 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono">correcthorsebatterystaple</code>). They are hard for machines to guess but easy for you to visualize.</span>
-                      </li>
-                      <li className="flex gap-2">
-                        <span className="text-primary font-bold">•</span>
-                        <span><strong className="text-slate-750 dark:text-slate-350">Avoid Personal Info:</strong> Do not include birth years, pet names, addresses, or usernames. Attacks scan your social profile to run targeted dictionary attacks.</span>
-                      </li>
-                      <li className="flex gap-2">
-                        <span className="text-primary font-bold">•</span>
-                        <span><strong className="text-slate-750 dark:text-slate-350">Never Reuse:</strong> If a hacker steals your password from one minor site breach, they will immediately test it on your emails and bank logins.</span>
-                      </li>
-                    </ul>
-                  </div>
-                )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* DETAILS PANEL & SUGGESTIONS */}
-        <div className="lg:col-span-1">
-          <AnimatePresence mode="wait">
-            {isAnalyzing && (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 h-full flex flex-col justify-center"
-              >
-                <SkeletonLoader count={1} className="py-4" />
-                <p className="text-xs text-center text-slate-455 dark:text-slate-500 mt-4">
-                  Calculating cryptographic entropy...
+        {/* SIDEBAR: SUGGESTIONS & AI ANALYSIS (5 cols) */}
+        <div className="lg:col-span-5 space-y-6">
+          {/* AI Analysis (if ready) */}
+          {aiResult && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-primary">
+                  ShieldAI Entropy Summary
+                </h3>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                {aiResult.explanation}
+              </p>
+            </div>
+          )}
+
+          {/* Strong Alternatives */}
+          {suggestions.length > 0 && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-3">
+              <div className="space-y-1">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Cryptographic Alternatives
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Strong randomly generated replacements:
                 </p>
-              </motion.div>
-            )}
+              </div>
 
-            {!isAnalyzing && !showResults && (
-              <motion.div
-                key="empty"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="glass-panel p-6 rounded-2xl border-dashed border-slate-200 dark:border-slate-800 text-center py-20 flex flex-col justify-center items-center"
-              >
-                <Key className="h-8 w-8 text-slate-350 dark:text-slate-700 mx-auto mb-3" />
-                <h4 className="font-bold text-xs text-slate-750 dark:text-slate-350">Awaiting Evaluation</h4>
-                <p className="text-[11px] text-slate-450 dark:text-slate-500 mt-1.5 max-w-[180px] mx-auto leading-relaxed">
-                  Type a password and click the Analyze button to see strength metrics and suggested secure alternatives.
-                </p>
-              </motion.div>
-            )}
-
-            {!isAnalyzing && showResults && (
-              <motion.div
-                key="results"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="space-y-6"
-              >
-                {/* METRICS */}
-                <div className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-5">
-                  <h3 className="font-bold text-slate-800 dark:text-slate-200">Security Metrics</h3>
-                  
-                  <div className="p-4 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Estimated Crack Time</span>
-                    <p className="text-lg font-black text-slate-800 dark:text-white">{metrics.timeToCrack}</p>
+              <div className="space-y-2">
+                {suggestions.map((item, idx) => (
+                  <div key={idx} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs text-slate-800 dark:text-slate-200 truncate">
+                      {item.password}
+                    </span>
+                    <button
+                      onClick={() => handleCopy(item.password)}
+                      aria-label="Copy password to clipboard"
+                      className="p-1.5 text-slate-500 hover:text-primary rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-
-                  <div className="p-4 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Security Level</span>
-                    <div className="flex items-center gap-1.5">
-                      {metrics.strength === 'Very Strong' || metrics.strength === 'Strong' ? (
-                        <ShieldCheck className="h-5 w-5 text-emerald-500" />
-                      ) : (
-                        <ShieldAlert className="h-5 w-5 text-rose-500 animate-pulse" />
-                      )}
-                      <span className={`font-black text-sm uppercase ${getStrengthStyles(metrics.strength).color}`}>
-                        {metrics.strength}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* SUGGESTION ENGINE */}
-                {suggestions.length > 0 && (
-                  <div className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-1.5">
-                        <Sparkles className="h-4 w-4 text-amber-500" />
-                        <h3 className="font-bold text-slate-800 dark:text-slate-200">Strong Alternatives</h3>
-                      </div>
-                      <button
-                        onClick={generateSuggestions}
-                        className="p-1.5 border border-slate-205 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
-                        title="Generate More suggestions"
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="space-y-3.5">
-                      {suggestions.map((sug, idx) => (
-                        <div key={idx} className="p-3 bg-slate-105 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-mono text-xs text-primary font-bold select-all break-all pr-2">
-                              {sug.password}
-                            </span>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 uppercase font-mono">
-                                Very Strong
-                              </span>
-                              <button
-                                onClick={() => handleCopy(sug.password)}
-                                className="p-1.5 hover:bg-slate-205 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-655 rounded-lg transition-colors"
-                                title="Copy to Clipboard"
-                              >
-                                <Copy className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed border-t border-slate-200 dark:border-slate-800/30 pt-1.5">
-                            {sug.explanation}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
+
+export default PasswordChecker;

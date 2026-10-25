@@ -3,7 +3,6 @@ import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { Navbar } from '../components/common/Navbar';
 import { Footer } from '../components/common/Footer';
-import { CyberBackground } from '../components/common/CyberBackground';
 import { ShieldAssistant } from '../components/common/ShieldAssistant';
 
 export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -47,30 +46,23 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
   };
 
   return (
-    <MotionConfig transition={{ duration: reduceMotion ? 0 : undefined }}>
-      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#090d16] text-slate-800 dark:text-slate-100 transition-colors duration-305 relative overflow-hidden">
-        {/* Network particle dynamic canvas background */}
-        <CyberBackground />
-
-        {/* Cyber grid layout */}
-        <div className="absolute inset-0 cyber-grid pointer-events-none z-0 animate-grid-scroll" />
-        
-        {/* Background ambient glowing rings */}
-        <div className="absolute top-1/4 left-1/10 w-96 h-96 bg-primary/10 rounded-full blur-[130px] pointer-events-none z-0 animate-pulse-glow" />
-        <div className="absolute bottom-1/4 right-1/10 w-[450px] h-[450px] bg-indigo-500/5 dark:bg-primary/5 rounded-full blur-[150px] pointer-events-none z-0 animate-pulse-glow" />
+    <MotionConfig transition={{ duration: reduceMotion ? 0 : 0.18 }}>
+      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 transition-colors duration-200 relative">
+        {/* Subtle, calm static grid without moving particles or animations */}
+        <div className="absolute inset-0 cyber-grid pointer-events-none opacity-50 dark:opacity-40 z-0" />
 
         {/* Navigation header */}
         <Navbar theme={theme} toggleTheme={toggleTheme} />
 
         {/* Dynamic page transition content */}
-        <main className="flex-grow flex flex-col relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 overflow-x-hidden">
+        <main className="flex-grow flex flex-col relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
               className="flex-grow flex flex-col w-full"
             >
               {children}
@@ -81,7 +73,7 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
         {/* Footer */}
         <Footer />
 
-        {/* Floating AI Security Assistant Widget */}
+        {/* Slide-over AI Security Assistant Drawer */}
         <ShieldAssistant />
       </div>
     </MotionConfig>

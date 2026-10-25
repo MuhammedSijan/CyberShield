@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ShieldCheck, AlertTriangle, ShieldAlert, 
-  UploadCloud, RefreshCw, File, Info, Sparkles
+import {
+  ShieldCheck, AlertTriangle, ShieldAlert,
+  UploadCloud, RefreshCw, File, Lock, Sparkles, FileText
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { useSecurity } from '../context/SecurityContext';
@@ -55,7 +55,7 @@ export const FileSafetyAnalyzer: React.FC = () => {
 
       // 2. Perform risk scanning
       const warnings: string[] = [];
-      let localRiskScore = 5; // Base score
+      let localRiskScore = 5;
 
       // Executables check
       const executableExts = ['exe', 'apk', 'bat', 'com', 'cmd', 'sh', 'app', 'msi', 'jar', 'vbs'];
@@ -86,7 +86,7 @@ export const FileSafetyAnalyzer: React.FC = () => {
         warnings.push(`Large File Payload: File size exceeds 25 MB (${fileSizeMB.toFixed(2)} MB), which might bypass standard sandboxing scanners.`);
       }
 
-      // 3. Call secure backend proxy
+      // 3. Call backend AI proxy
       const aiResponse = await aiService.analyzeFile({
         name: file.name,
         extension: ext ? `.${ext}` : '',
@@ -108,12 +108,12 @@ export const FileSafetyAnalyzer: React.FC = () => {
 
       const evalInfo: FileDetails = {
         name: file.name,
-        extension: ext ? `.${ext}` : 'No Extension',
+        extension: ext ? `.${ext}` : 'None',
         mimeType: mime,
         size: file.size,
         hash: hashHex,
         lastModified: lastModDate,
-        warnings: Array.from(new Set(warnings.concat(aiResponse.indicators || []))),
+        warnings,
         riskScore: Math.min(compositeScore, 100),
         riskLevel: uiRiskLevel
       };
@@ -133,7 +133,6 @@ export const FileSafetyAnalyzer: React.FC = () => {
     setFileDetails(evalInfo);
     setIsScanning(false);
 
-    // Save scan to global context reports
     addScan(
       'file',
       file.name,
@@ -168,8 +167,6 @@ export const FileSafetyAnalyzer: React.FC = () => {
     }
   };
 
-
-
   const formatSize = (bytes: number) => {
     if (bytes >= 1024 * 1024) {
       return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
@@ -181,57 +178,63 @@ export const FileSafetyAnalyzer: React.FC = () => {
     switch (level) {
       case 'Danger':
         return {
-          icon: <ShieldAlert className="h-8 w-8 text-rose-500 animate-pulse" />,
-          color: 'text-rose-500',
-          bg: 'bg-rose-500/10 border-rose-500/25',
-          label: 'Danger / Threats Identified'
+          icon: <ShieldAlert className="h-6 w-6 text-rose-600 dark:text-rose-400" />,
+          color: 'text-rose-700 dark:text-rose-400',
+          bg: 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60',
+          label: 'Critical Hazard / Dangerous Format'
         };
       case 'Suspicious':
         return {
-          icon: <AlertTriangle className="h-8 w-8 text-amber-500" />,
-          color: 'text-amber-500',
-          bg: 'bg-amber-500/10 border-amber-500/25',
-          label: 'Caution / Sandbox Alert'
+          icon: <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />,
+          color: 'text-amber-700 dark:text-amber-400',
+          bg: 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60',
+          label: 'Suspicious / Potential Obfuscation'
         };
       default:
         return {
-          icon: <ShieldCheck className="h-8 w-8 text-emerald-500" />,
-          color: 'text-emerald-500',
-          bg: 'bg-emerald-500/10 border-emerald-500/25',
-          label: 'Safe / Low Threat'
+          icon: <ShieldCheck className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />,
+          color: 'text-emerald-700 dark:text-emerald-400',
+          bg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60',
+          label: 'Standard Format / Clean Profile'
         };
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 py-4">
+    <div className="max-w-5xl mx-auto space-y-8 py-4 text-left">
       {/* HEADER */}
-      <div>
-        <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white">File Safety Analyzer</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">
-          Perform a local diagnostic audit of file extensions, MIME signatures, file sizes, and client-side SHA-256 checksum hashes.
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-6 space-y-1.5">
+        <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-semibold">
+          <FileText className="h-3.5 w-3.5" />
+          <span>Local File Auditor</span>
+        </div>
+        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          File Safety Analyzer
+        </h1>
+        <p className="text-sm text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
+          Inspect file extensions, MIME signatures, double-extension masking, and calculate SHA-256 integrity checksums entirely inside your browser.
         </p>
       </div>
 
       {/* PRIVACY WARNING */}
-      <div className="p-4 rounded-xl border border-blue-500/25 bg-blue-500/10 dark:bg-blue-500/5 flex items-start gap-3">
-        <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
-        <div className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-          <span className="font-bold text-slate-800 dark:text-white">🔒 Client-Side Cryptography:</span> Files are parsed entirely inside your browser sandbox. File bytes are never uploaded or stored on any server.
+      <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 flex items-start gap-3">
+        <Lock className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+        <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+          <strong className="text-slate-900 dark:text-white">Zero File Upload:</strong> Files are read through local browser File and subtle crypto APIs. File payload contents never leave your workstation.
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* FILE UPLOAD CONTAINER */}
-        <div className="lg:col-span-2 space-y-6">
-          <div 
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* FILE UPLOAD DROPZONE (7 cols) */}
+        <div className="lg:col-span-7 space-y-6">
+          <div
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
             className={`border-2 border-dashed rounded-2xl p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[300px] ${
-              dragOver 
-                ? 'border-primary bg-primary/5' 
-                : 'border-slate-200 dark:border-slate-800 hover:border-primary/60 bg-slate-100/10 dark:bg-slate-900/10'
+              dragOver
+                ? 'border-primary bg-primary/5'
+                : 'border-slate-300 dark:border-slate-700 hover:border-primary bg-white dark:bg-slate-900 shadow-xs'
             }`}
           >
             <input
@@ -241,34 +244,39 @@ export const FileSafetyAnalyzer: React.FC = () => {
               id="file-analyzer-input"
             />
             <label htmlFor="file-analyzer-input" className="cursor-pointer flex flex-col items-center">
-              <UploadCloud className="h-14 w-14 text-slate-400 dark:text-slate-600 mb-4 animate-bounce-slow" />
-              <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-full mb-3 text-primary border border-slate-200 dark:border-slate-700">
+                <UploadCloud className="h-8 w-8" />
+              </div>
+              <h3 className="font-bold text-slate-900 dark:text-white text-sm">
                 Drag and Drop File Here
               </h3>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2 max-w-[240px] leading-relaxed">
-                Accepts ZIP, RAR, PDF, DOCX, XLSX, PPTX, EXE, APK, images, and text files. Max payload size: 100 MB.
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-[280px] leading-relaxed">
+                Accepts documents, executables, archives, and media up to 100 MB.
               </p>
-              <span className="mt-4 px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-primary/20 hover:bg-primary-dark">
-                Choose File Local
+              <span className="mt-4 px-4 py-2 bg-primary hover:bg-primary-dark text-white text-xs font-semibold rounded-xl transition-all shadow-xs inline-block">
+                Choose Local File
               </span>
             </label>
           </div>
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                setFileDetails(null);
-                setIsScanning(false);
-              }}
-              className="px-3.5 py-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
-            >
-              <RefreshCw className="h-3 w-3" /> Reset Scan
-            </button>
+          <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
+            <span>Runs offline in client sandbox</span>
+            {fileDetails && (
+              <button
+                onClick={() => {
+                  setFileDetails(null);
+                  setIsScanning(false);
+                }}
+                className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1"
+              >
+                <RefreshCw className="h-3 w-3" /> Clear current file
+              </button>
+            )}
           </div>
         </div>
 
-        {/* RESULTS PANEL */}
-        <div className="lg:col-span-1">
+        {/* RESULTS PANEL (5 cols) */}
+        <div className="lg:col-span-5">
           <AnimatePresence mode="wait">
             {isScanning && (
               <StepProgressScanner onComplete={handleScanComplete} />
@@ -280,14 +288,16 @@ export const FileSafetyAnalyzer: React.FC = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="glass-panel p-6 rounded-2xl border-dashed border-slate-200 dark:border-slate-800 h-full flex flex-col items-center justify-center text-center py-16"
+                className="bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center space-y-3 py-16"
               >
-                <div className="p-4 bg-slate-100 dark:bg-slate-800/40 rounded-full mb-4">
-                  <File className="h-8 w-8 text-slate-405 dark:text-slate-655" />
+                <div className="p-3.5 bg-slate-100 dark:bg-slate-800 rounded-full w-fit mx-auto text-slate-400">
+                  <File className="h-7 w-7" />
                 </div>
-                <h3 className="font-bold text-slate-800 dark:text-slate-200">Awaiting File Upload</h3>
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 max-w-[200px]">
-                  Drop a file in the scan zone to generate client-side security profiles.
+                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">
+                  Awaiting File
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+                  Drop a file into the upload zone to calculate SHA-256 hashes and inspect for masking patterns.
                 </p>
               </motion.div>
             )}
@@ -295,19 +305,21 @@ export const FileSafetyAnalyzer: React.FC = () => {
             {!isScanning && fileDetails && (
               <motion.div
                 key="results"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-6"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-6"
               >
                 {/* Score Status */}
-                <div className={`p-4 rounded-xl border flex items-center gap-3 ${getRiskColor(fileDetails.riskLevel).bg}`}>
+                <div className={`p-4 rounded-xl border flex items-center gap-3.5 ${getRiskColor(fileDetails.riskLevel).bg}`}>
                   <div>{getRiskColor(fileDetails.riskLevel).icon}</div>
                   <div className="min-w-0 flex-1">
-                    <span className="text-[10px] text-slate-450 dark:text-slate-500 font-medium">Threat Level</span>
-                    <h4 className={`text-sm font-bold truncate leading-none ${getRiskColor(fileDetails.riskLevel).color}`}>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      File Safety Status
+                    </span>
+                    <h3 className={`text-sm font-bold truncate ${getRiskColor(fileDetails.riskLevel).color}`}>
                       {getRiskColor(fileDetails.riskLevel).label}
-                    </h4>
+                    </h3>
                   </div>
                 </div>
 
@@ -319,14 +331,14 @@ export const FileSafetyAnalyzer: React.FC = () => {
                       {fileDetails.riskScore}/100
                     </span>
                   </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full ${
-                        fileDetails.riskLevel === 'Danger' 
-                          ? 'bg-rose-500' 
-                          : fileDetails.riskLevel === 'Suspicious' 
-                          ? 'bg-amber-500' 
-                          : 'bg-emerald-500'
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        fileDetails.riskLevel === 'Danger'
+                          ? 'bg-rose-500'
+                          : fileDetails.riskLevel === 'Suspicious'
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
                       }`}
                       style={{ width: `${fileDetails.riskScore}%` }}
                     />
@@ -334,51 +346,51 @@ export const FileSafetyAnalyzer: React.FC = () => {
                 </div>
 
                 {/* Metadata List */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                    File Metadata
+                <div className="space-y-2.5">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    File Telemetry
                   </h4>
 
-                  <div className="grid grid-cols-1 gap-2">
-                    <div className="p-3 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                      <span className="text-[9px] uppercase font-bold text-slate-450 dark:text-slate-500">File Name</span>
-                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{fileDetails.name}</p>
+                  <div className="space-y-2">
+                    <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase block">File Name</span>
+                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate mt-0.5">{fileDetails.name}</p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="p-3 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                        <span className="text-[9px] uppercase font-bold text-slate-450 dark:text-slate-500">Extension</span>
-                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{fileDetails.extension}</p>
+                      <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[10px] font-semibold text-slate-500 uppercase block">Extension</span>
+                        <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">{fileDetails.extension}</p>
                       </div>
-                      <div className="p-3 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                        <span className="text-[9px] uppercase font-bold text-slate-450 dark:text-slate-500">File Size</span>
-                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{formatSize(fileDetails.size)}</p>
+                      <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[10px] font-semibold text-slate-500 uppercase block">Size</span>
+                        <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">{formatSize(fileDetails.size)}</p>
                       </div>
                     </div>
 
-                    <div className="p-3 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                      <span className="text-[9px] uppercase font-bold text-slate-450 dark:text-slate-500">MIME Type</span>
-                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{fileDetails.mimeType}</p>
+                    <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase block">MIME Type</span>
+                      <p className="text-xs font-mono text-slate-700 dark:text-slate-300 truncate mt-0.5">{fileDetails.mimeType}</p>
                     </div>
 
-                    <div className="p-3 bg-slate-105 dark:bg-slate-800/40 rounded-xl space-y-1">
-                      <span className="text-[9px] uppercase font-bold text-slate-450 dark:text-slate-500">Local SHA-256 Hash</span>
-                      <p className="text-[10px] font-mono font-bold text-primary break-all select-all">{fileDetails.hash}</p>
+                    <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase block">Local SHA-256 Checksum</span>
+                      <p className="text-[11px] font-mono text-primary break-all select-all mt-0.5">{fileDetails.hash}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Warnings Section */}
                 {fileDetails.warnings.length > 0 && (
-                  <div className="space-y-2.5">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-rose-500">
-                      Security Warnings ({fileDetails.warnings.length})
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                      Warnings ({fileDetails.warnings.length})
                     </h4>
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       {fileDetails.warnings.map((warn, idx) => (
-                        <div key={idx} className="p-3 bg-rose-500/5 border border-rose-500/10 rounded-xl flex items-start gap-2.5">
-                          <AlertTriangle className="h-4.5 w-4.5 text-rose-500 shrink-0 mt-0.5" />
-                          <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed">{warn}</p>
+                        <div key={idx} className="p-2.5 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 rounded-xl flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
+                          <p className="text-[11px] text-rose-800 dark:text-rose-300 leading-relaxed">{warn}</p>
                         </div>
                       ))}
                     </div>
@@ -387,48 +399,20 @@ export const FileSafetyAnalyzer: React.FC = () => {
 
                 {/* AI Explanation Section */}
                 {aiResult && (
-                  <div className="p-4 bg-gradient-to-br from-indigo-500/5 to-slate-900/5 border border-indigo-500/10 rounded-xl relative overflow-hidden space-y-3">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
                     <div className="flex items-center justify-between gap-1.5">
                       <div className="flex items-center gap-1.5">
                         <Sparkles className="h-3.5 w-3.5 text-primary" />
                         <span className="text-[10px] font-bold text-primary uppercase">ShieldAI Malware Analysis</span>
                       </div>
-                      <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                      <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded">
                         Confidence: {aiResult.confidence ?? 100}%
                       </span>
                     </div>
-                    
-                    <p className="text-[11px] text-slate-550 dark:text-slate-400 leading-relaxed border-b border-slate-100 dark:border-slate-800/40 pb-2">
+
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                       {aiResult.explanation}
                     </p>
-
-                    {aiResult.recommendations && aiResult.recommendations.length > 0 && (
-                      <div className="space-y-1 text-left pt-1">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">AI Recommendations</span>
-                        <div className="flex flex-col gap-1">
-                          {aiResult.recommendations.map((rec: string, idx: number) => (
-                            <div key={idx} className="text-[10px] text-slate-500 dark:text-slate-400 flex items-start gap-1">
-                              <span className="text-emerald-500 mt-0.5">✓</span>
-                              <span>{rec}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {aiResult.immediateActions && aiResult.immediateActions.length > 0 && (
-                      <div className="p-2.5 bg-rose-500/5 border border-rose-500/10 rounded-lg space-y-1 text-left">
-                        <span className="text-[9px] font-black uppercase tracking-wider text-rose-505 dark:text-rose-400">Immediate Hazards Remediation</span>
-                        <div className="flex flex-col gap-1">
-                          {aiResult.immediateActions.map((act: string, idx: number) => (
-                            <div key={idx} className="text-[10px] text-rose-600 dark:text-rose-455 font-semibold flex items-start gap-1">
-                              <span className="mt-0.5 text-rose-550 font-bold">!</span>
-                              <span>{act}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </motion.div>
@@ -439,3 +423,5 @@ export const FileSafetyAnalyzer: React.FC = () => {
     </div>
   );
 };
+
+export default FileSafetyAnalyzer;

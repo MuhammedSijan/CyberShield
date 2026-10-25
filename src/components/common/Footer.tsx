@@ -4,15 +4,15 @@ import { Shield, Mail, Phone, MapPin } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="border-t border-slate-200 dark:border-slate-805 bg-slate-100/40 dark:bg-[#070b13]/60 backdrop-blur-md mt-auto transition-all duration-300">
+    <footer className="border-t border-slate-200 dark:border-slate-800 bg-slate-100/40 dark:bg-[#070b13]/60 backdrop-blur-md mt-auto transition-all duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
           {/* Logo & Pitch */}
           <div className="space-y-4 col-span-1 sm:col-span-2 md:col-span-1">
             <Link to="/home" className="flex items-center gap-2.5">
               <Shield className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold tracking-tight text-slate-800 dark:text-white">
-                Cyber<span className="text-primary text-glow-primary">Shield</span>
+              <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                Cyber<span className="text-primary font-extrabold">Shield</span>
               </span>
             </Link>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm">
@@ -22,7 +22,7 @@ export const Footer: React.FC = () => {
 
           {/* Quick Links */}
           <div>
-            <h3 className="text-xs font-extrabold text-slate-800 dark:text-slate-350 uppercase tracking-widest mb-4">
+            <h3 className="text-xs font-extrabold text-slate-800 dark:text-slate-300 uppercase tracking-widest mb-4">
               Diagnostic Hub
             </h3>
             <ul className="space-y-2.5">
@@ -47,7 +47,7 @@ export const Footer: React.FC = () => {
 
           {/* Corporate Support */}
           <div>
-            <h3 className="text-xs font-extrabold text-slate-800 dark:text-slate-350 uppercase tracking-widest mb-4">
+            <h3 className="text-xs font-extrabold text-slate-800 dark:text-slate-300 uppercase tracking-widest mb-4">
               Enterprise
             </h3>
             <ul className="space-y-2.5">
@@ -76,7 +76,7 @@ export const Footer: React.FC = () => {
 
           {/* Contact Details */}
           <div>
-            <h3 className="text-xs font-extrabold text-slate-800 dark:text-slate-350 uppercase tracking-widest mb-4">
+            <h3 className="text-xs font-extrabold text-slate-800 dark:text-slate-300 uppercase tracking-widest mb-4">
               Operational Office
             </h3>
             <ul className="space-y-2.5">
@@ -97,7 +97,7 @@ export const Footer: React.FC = () => {
         </div>
 
         {/* Footer bottom social row */}
-        <div className="border-t border-slate-200 dark:border-slate-850 mt-8 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="border-t border-slate-200 dark:border-slate-800 mt-8 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <p className="text-xs text-slate-400 dark:text-slate-500 text-center sm:text-left">
               &copy; {new Date().getFullYear()} CyberShield Inc. All rights reserved.
@@ -115,7 +115,7 @@ export const Footer: React.FC = () => {
               href="https://github.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-white transition-colors"
+              className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
               title="GitHub Repository"
             >
               <svg className="h-4.5 w-4.5 fill-current" viewBox="0 0 24 24">

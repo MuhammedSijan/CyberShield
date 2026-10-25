@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,56 +6,70 @@
 
 @layer base {
   body {
-    @apply font-sans transition-colors duration-300;
+    @apply font-sans transition-colors duration-200 antialiased;
+    text-rendering: optimizeLegibility;
   }
 }
 
-/* Custom styles for CyberShield */
+/* Crisp Editorial Surfaces for CyberShield */
 .glass-panel {
-  @apply backdrop-blur-md border transition-all duration-300;
-  background: rgba(30, 41, 59, 0.45);
-  border-color: rgba(255, 255, 255, 0.06);
+  @apply border transition-all duration-200;
+  background: #0f172a;
+  border-color: #1e293b;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
 }
 
 .light .glass-panel {
-  background: rgba(255, 255, 255, 0.7);
-  border-color: rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05);
 }
 
 .glass-panel-hover {
-  @apply hover:border-primary/45 hover:shadow-lg hover:shadow-primary/5;
+  @apply hover:border-primary/50 transition-all duration-200;
 }
 
-.text-glow {
-  text-shadow: 0 0 12px rgba(37, 99, 235, 0.4);
+.light .glass-panel-hover {
+  @apply hover:border-slate-300 hover:shadow-md hover:shadow-slate-200/50;
 }
 
+/* Elevated Card Variant */
+.card-elevated {
+  @apply rounded-2xl border transition-all duration-200;
+  background: #0f172a;
+  border-color: #1e293b;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+}
+
+.light .card-elevated {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.05), 0 2px 4px -2px rgba(15, 23, 42, 0.03);
+}
+
+/* Subtle, static grid without distracting movement */
 .cyber-grid {
   background-image: 
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 40px 40px;
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 .light .cyber-grid {
   background-image: 
-    linear-gradient(rgba(15, 23, 42, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 23, 42, 0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
+    linear-gradient(rgba(15, 23, 42, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.02) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
-}
-
-.light ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -76,69 +90,16 @@
   background: #94a3b8;
 }
 
-/* Premium Animations */
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-12px) rotate(1.5deg);
-  }
-}
-
-@keyframes grid-scroll {
-  0% {
-    background-position: 0 0;
-  }
-  100% {
-    background-position: 40px 40px;
-  }
-}
-
-@keyframes pulse-glow {
-  0%, 100% {
-    opacity: 0.15;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.35;
-    transform: scale(1.05);
-  }
-}
-
-.animate-float-shield {
-  animation: float 6s ease-in-out infinite;
-}
-
-.animate-grid-scroll {
-  animation: grid-scroll 24s linear infinite;
-}
-
-.animate-pulse-glow {
-  animation: pulse-glow 8s ease-in-out infinite;
-}
-
-/* Custom Utilities */
-.text-glow-primary {
-  text-shadow: 0 0 16px rgba(37, 99, 235, 0.45);
-}
-
-.card-glow-hover {
-  @apply transition-all duration-300;
-}
-
-.card-glow-hover:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.15), 0 8px 10px -6px rgba(37, 99, 235, 0.15);
-  border-color: rgba(37, 99, 235, 0.3);
-}
-
 /* Focus States & Accessibility */
 input:focus, select:focus, textarea:focus {
-  @apply ring-2 ring-primary/40 outline-none border-primary/60 transition-all duration-200;
+  @apply ring-2 ring-primary/30 outline-none border-primary transition-all duration-150;
 }
 
 button:focus-visible, a:focus-visible {
-  @apply outline-none ring-2 ring-primary/60 ring-offset-2 ring-offset-[#090d16];
+  @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-white dark:ring-offset-[#0b0f19];
 }
 
+/* Utility badge & status chips */
+.status-pill {
+  @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold;
+}

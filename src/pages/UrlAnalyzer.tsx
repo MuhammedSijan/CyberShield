@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Globe, ShieldCheck, AlertTriangle, 
+import {
+  Globe, ShieldCheck, AlertTriangle,
   RefreshCw, ShieldAlert, Sparkles,
-  Link as LinkIcon, Server, ShieldCheck as LockIcon, Hash
+  Link as LinkIcon, Server, ShieldCheck as LockIcon, Hash, ArrowRight
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { useSecurity } from '../context/SecurityContext';
@@ -35,7 +35,7 @@ export const UrlAnalyzer: React.FC = () => {
     try {
       const lowerUrl = url.toLowerCase();
       let localRiskScore = 10;
-      let hasHttps = lowerUrl.startsWith('https://');
+      const hasHttps = lowerUrl.startsWith('https://');
       const keywords = ['paypal', 'secure', 'bank', 'login', 'update', 'verify', 'account', 'signin', 'support', 'recovery'];
       const foundKeywords = keywords.filter(kw => lowerUrl.includes(kw));
       const cleanHost = url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
@@ -76,7 +76,6 @@ export const UrlAnalyzer: React.FC = () => {
         aiData: aiResponse
       };
 
-      // Save calculated metrics
       setTempUrlEval({ url, isAuto, finalEval });
     } catch (err: any) {
       console.error("URL scan failed:", err);
@@ -88,23 +87,18 @@ export const UrlAnalyzer: React.FC = () => {
   const handleScanComplete = () => {
     if (!tempUrlEval) return;
     const { url, isAuto, finalEval } = tempUrlEval;
-    
+
     setResult(finalEval);
     setIsLoading(false);
     setShowResults(true);
 
-    // Log in session report
-    addScan('url', url, finalEval.riskLevel === 'Safe' ? 'Verified Safe' : 'Threat Flags Found', finalEval.riskScore, finalEval.riskLevel);
-    showToast(isAuto ? 'Auto Scan Completed' : 'Scan Completed', 'Domain safety metrics evaluated.', 'success');
-  };
+    const cleanTarget = url.length > 30 ? `${url.substring(0, 30)}...` : url;
+    addScan('url', cleanTarget, finalEval.riskLevel === 'Safe' ? 'Verified Clean' : 'Suspect Domain', finalEval.riskScore, finalEval.riskLevel);
 
-  useEffect(() => {
-    const urlParam = searchParams.get('url');
-    if (urlParam) {
-      setUrlInput(urlParam);
-      executeAnalysis(urlParam, true);
+    if (!isAuto) {
+      showToast('Analysis Completed', 'Domain security indicators processed.', 'success');
     }
-  }, [searchParams]);
+  };
 
   const handleAnalyze = () => {
     if (!urlInput.trim()) {
@@ -115,32 +109,40 @@ export const UrlAnalyzer: React.FC = () => {
   };
 
   useEffect(() => {
-    // Hide old results if the user edits the URL text
     setShowResults(false);
   }, [urlInput]);
+
+  useEffect(() => {
+    const queryUrl = searchParams.get('url');
+    if (queryUrl) {
+      setUrlInput(queryUrl);
+      executeAnalysis(queryUrl, true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const getRiskDetails = (level: string) => {
     switch (level) {
       case 'Danger':
         return {
-          icon: <ShieldAlert className="h-8 w-8 text-rose-500" />,
-          color: 'text-rose-500',
-          bg: 'bg-rose-500/10 border-rose-500/25',
-          label: 'Danger / Threat Blocked'
+          icon: <ShieldAlert className="h-6 w-6 text-rose-600 dark:text-rose-400" />,
+          color: 'text-rose-700 dark:text-rose-400',
+          bg: 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60',
+          label: 'Critical Hazard / Threat Flagged'
         };
       case 'Suspicious':
         return {
-          icon: <AlertTriangle className="h-8 w-8 text-amber-500" />,
-          color: 'text-amber-500',
-          bg: 'bg-amber-500/10 border-amber-500/25',
-          label: 'Caution / Suspicious Domain'
+          icon: <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />,
+          color: 'text-amber-700 dark:text-amber-400',
+          bg: 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60',
+          label: 'Caution / Anomalous Domain'
         };
       default:
         return {
-          icon: <ShieldCheck className="h-8 w-8 text-emerald-500" />,
-          color: 'text-emerald-500',
-          bg: 'bg-emerald-500/10 border-emerald-500/25',
-          label: 'Safe / Clean Signature'
+          icon: <ShieldCheck className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />,
+          color: 'text-emerald-700 dark:text-emerald-400',
+          bg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60',
+          label: 'Clean Signature / Low Risk'
         };
     }
   };
@@ -154,74 +156,91 @@ export const UrlAnalyzer: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 py-4">
+    <div className="max-w-5xl mx-auto space-y-8 py-4 text-left">
       {/* HEADER */}
-      <div>
-        <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white">URL Safety Analyzer</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">
-          Inspect target hyperlink addresses for security certificates, character anomalies, subdomain spoofing, and malicious keywords.
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-6 space-y-1.5">
+        <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-semibold">
+          <Globe className="h-3.5 w-3.5" />
+          <span>Web Safety Inspector</span>
+        </div>
+        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          URL Safety Analyzer
+        </h1>
+        <p className="text-sm text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
+          Inspect hyperlink destinations client-side for SSL validity, typosquatting variants, raw IP hosts, and deceptive subdomain structures.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* INPUT BOX */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-4">
-            <h3 className="font-bold text-slate-800 dark:text-slate-200">Inspect Link</h3>
-            
-            <div className="flex gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* INPUT & SAMPLES (7 cols) */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+              Target URL Address
+            </h2>
+
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
-                placeholder="Enter URL to analyze (e.g. secure-paypal-billing.com)..."
-                className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-200 text-sm focus:outline-none focus:border-primary transition-colors placeholder-slate-400 dark:placeholder-slate-650"
+                onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
+                placeholder="Enter URL to analyze (e.g., https://secure-login.com)..."
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder-slate-400 dark:placeholder-slate-500"
               />
               <button
                 onClick={handleAnalyze}
                 disabled={isLoading}
-                className="px-6 py-3 bg-primary hover:bg-primary-dark disabled:bg-primary/50 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-primary/20 flex items-center gap-1.5 shrink-0"
+                className="px-6 py-2.5 bg-primary hover:bg-primary-dark disabled:bg-primary/50 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 shrink-0"
               >
                 {isLoading ? 'Scanning...' : 'Scan URL'}
+                <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
 
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setUrlInput('');
-                  setResult(null);
-                  setShowResults(false);
-                }}
-                className="px-3.5 py-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
-              >
-                <RefreshCw className="h-3 w-3" /> Clear
-              </button>
+            <div className="flex justify-between items-center pt-1 text-xs text-slate-500 dark:text-slate-400">
+              <span>Client-side heuristics & protocol checks</span>
+              {urlInput && (
+                <button
+                  onClick={() => {
+                    setUrlInput('');
+                    setResult(null);
+                    setShowResults(false);
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1"
+                >
+                  <RefreshCw className="h-3 w-3" /> Clear input
+                </button>
+              )}
             </div>
           </div>
 
           {/* SAMPLES SECTION */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Interactive Test Domains
-            </h4>
-            <div className="flex flex-col gap-2">
+            </h3>
+            <div className="space-y-2">
               {samples.map((sample, idx) => (
                 <button
                   key={idx}
                   onClick={() => handleSampleClick(sample)}
-                  className="p-3.5 rounded-xl border glass-panel glass-panel-hover text-left flex items-center justify-between text-xs border-slate-200 dark:border-slate-800/60"
+                  className="w-full p-3 rounded-xl border bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-left flex items-center justify-between text-xs border-slate-200 dark:border-slate-800 transition-all group"
                 >
-                  <span className="font-mono text-slate-700 dark:text-slate-350 truncate pr-4">{sample}</span>
-                  <span className="text-[10px] text-primary font-bold shrink-0">Select Domain</span>
+                  <span className="font-mono text-slate-700 dark:text-slate-300 truncate pr-4 group-hover:text-primary transition-colors">
+                    {sample}
+                  </span>
+                  <span className="text-[11px] text-primary font-semibold shrink-0">
+                    Load domain →
+                  </span>
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        {/* RESULTS PANEL */}
-        <div className="lg:col-span-1">
+        {/* RESULTS PANEL (5 cols) */}
+        <div className="lg:col-span-5">
           <AnimatePresence mode="wait">
             {isLoading && (
               <StepProgressScanner onComplete={handleScanComplete} />
@@ -233,14 +252,16 @@ export const UrlAnalyzer: React.FC = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="glass-panel p-6 rounded-2xl border-dashed border-slate-200 dark:border-slate-800 h-full flex flex-col items-center justify-center text-center py-16"
+                className="bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center space-y-3 py-16"
               >
-                <div className="p-4 bg-slate-100 dark:bg-slate-800/40 rounded-full mb-4">
-                  <Globe className="h-8 w-8 text-slate-405 dark:text-slate-650" />
+                <div className="p-3.5 bg-slate-100 dark:bg-slate-800 rounded-full w-fit mx-auto text-slate-400">
+                  <Globe className="h-7 w-7" />
                 </div>
-                <h3 className="font-bold text-slate-800 dark:text-slate-200">Awaiting URL</h3>
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 max-w-[200px]">
-                  Input a domain address or click a mock shortcut to execute diagnostic scans.
+                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">
+                  Ready for Inspection
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+                  Enter any web address or select a test domain to initiate client-side security analysis.
                 </p>
               </motion.div>
             )}
@@ -248,19 +269,21 @@ export const UrlAnalyzer: React.FC = () => {
             {!isLoading && showResults && result && (
               <motion.div
                 key="results"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-6"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-6"
               >
                 {/* Risk Level Badge */}
-                <div className={`p-4 rounded-xl border flex items-center gap-3 ${getRiskDetails(result.riskLevel).bg}`}>
+                <div className={`p-4 rounded-xl border flex items-center gap-3.5 ${getRiskDetails(result.riskLevel).bg}`}>
                   <div>{getRiskDetails(result.riskLevel).icon}</div>
                   <div>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Domain Health</span>
-                    <h4 className={`text-base font-bold leading-none ${getRiskDetails(result.riskLevel).color}`}>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Security Status
+                    </span>
+                    <h3 className={`text-sm font-bold ${getRiskDetails(result.riskLevel).color}`}>
                       {getRiskDetails(result.riskLevel).label}
-                    </h4>
+                    </h3>
                   </div>
                 </div>
 
@@ -268,76 +291,78 @@ export const UrlAnalyzer: React.FC = () => {
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs font-semibold">
                     <span className="text-slate-500 dark:text-slate-400">Risk Factor</span>
-                    <span className={`${getRiskDetails(result.riskLevel).color} font-bold`}>{result.riskScore}/100</span>
+                    <span className={`${getRiskDetails(result.riskLevel).color} font-bold`}>
+                      {result.riskScore}/100
+                    </span>
                   </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full ${
-                        result.riskLevel === 'Danger' 
-                          ? 'bg-rose-500' 
-                          : result.riskLevel === 'Suspicious' 
-                          ? 'bg-amber-500' 
-                          : 'bg-emerald-500'
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        result.riskLevel === 'Danger'
+                          ? 'bg-rose-500'
+                          : result.riskLevel === 'Suspicious'
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
                       }`}
                       style={{ width: `${result.riskScore}%` }}
                     />
                   </div>
                 </div>
 
-                {/* Metrics report list */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                    Diagnostic Reports
+                {/* Diagnostic Indicators */}
+                <div className="space-y-2.5">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Diagnostic Telemetry
                   </h4>
-                  
-                  <div className="grid grid-cols-1 gap-2.5">
-                    <div className="p-3 bg-slate-105 dark:bg-slate-800/40 rounded-xl flex items-center justify-between text-xs">
+
+                  <div className="space-y-2">
+                    <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
-                        <LockIcon className="h-4 w-4 text-slate-400" />
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">HTTPS Status</span>
+                        <LockIcon className="h-3.5 w-3.5 text-slate-400" />
+                        <span className="font-medium text-slate-700 dark:text-slate-300">HTTPS Transport</span>
                       </div>
-                      <span className={`font-bold uppercase ${result.hasHttps ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {result.hasHttps ? 'Secure SSL' : 'Unencrypted'}
+                      <span className={`font-semibold ${result.hasHttps ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {result.hasHttps ? 'Valid SSL' : 'Unencrypted HTTP'}
                       </span>
                     </div>
 
-                    <div className="p-3 bg-slate-105 dark:bg-slate-800/40 rounded-xl flex items-center justify-between text-xs">
+                    <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
-                        <LinkIcon className="h-4 w-4 text-slate-400" />
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">Domain Length</span>
+                        <LinkIcon className="h-3.5 w-3.5 text-slate-400" />
+                        <span className="font-medium text-slate-700 dark:text-slate-300">Hostname Length</span>
                       </div>
-                      <span className="font-mono text-slate-600 dark:text-slate-300">
+                      <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold">
                         {result.domainLength} chars
                       </span>
                     </div>
 
-                    <div className="p-3 bg-slate-105 dark:bg-slate-800/40 rounded-xl flex items-center justify-between text-xs">
+                    <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
-                        <Server className="h-4 w-4 text-slate-400" />
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">Raw IP Host</span>
+                        <Server className="h-3.5 w-3.5 text-slate-400" />
+                        <span className="font-medium text-slate-700 dark:text-slate-300">Raw IP Host</span>
                       </div>
-                      <span className={`font-bold ${result.isIpAddress ? 'text-rose-500' : 'text-slate-500'}`}>
-                        {result.isIpAddress ? 'Detected' : 'Standard DNS'}
+                      <span className={`font-semibold ${result.isIpAddress ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                        {result.isIpAddress ? 'Direct IP Address' : 'Standard DNS Host'}
                       </span>
                     </div>
 
-                    <div className="p-3 bg-slate-105 dark:bg-slate-800/40 rounded-xl flex items-center justify-between text-xs">
+                    <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
-                        <Hash className="h-4 w-4 text-slate-400" />
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">Typosquatting Check</span>
+                        <Hash className="h-3.5 w-3.5 text-slate-400" />
+                        <span className="font-medium text-slate-700 dark:text-slate-300">Typosquatting</span>
                       </div>
-                      <span className={`font-bold ${result.typosquattingDetected ? 'text-rose-500' : 'text-emerald-500'}`}>
-                        {result.typosquattingDetected ? 'Flagged Pattern' : 'Clean'}
+                      <span className={`font-semibold ${result.typosquattingDetected ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {result.typosquattingDetected ? 'Suspicious Variant' : 'Clean'}
                       </span>
                     </div>
 
-                    <div className="p-3 bg-slate-105 dark:bg-slate-800/40 rounded-xl flex items-center justify-between text-xs">
+                    <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
-                        <Globe className="h-4 w-4 text-slate-400" />
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">Subdomains Count</span>
+                        <Globe className="h-3.5 w-3.5 text-slate-400" />
+                        <span className="font-medium text-slate-700 dark:text-slate-300">Subdomain Count</span>
                       </div>
-                      <span className={`font-bold ${result.subdomainCount > 3 ? 'text-rose-500' : 'text-slate-500'}`}>
-                        {result.subdomainCount}
+                      <span className={`font-semibold ${result.subdomainCount > 3 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                        {result.subdomainCount} {result.subdomainCount === 1 ? 'level' : 'levels'}
                       </span>
                     </div>
                   </div>
@@ -345,13 +370,13 @@ export const UrlAnalyzer: React.FC = () => {
 
                 {/* Keywords list */}
                 {result.suspiciousKeywords.length > 0 && (
-                  <div className="space-y-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Flagged Brand Keywords
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {result.suspiciousKeywords.map((kw: string, idx: number) => (
-                        <span key={idx} className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-500 border border-rose-500/20 uppercase font-bold">
+                        <span key={idx} className="text-[11px] font-mono px-2 py-0.5 rounded bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 font-semibold uppercase">
                           {kw}
                         </span>
                       ))}
@@ -360,62 +385,20 @@ export const UrlAnalyzer: React.FC = () => {
                 )}
 
                 {/* AI Explanation Section */}
-                <div className="p-4 bg-gradient-to-br from-indigo-500/5 to-slate-900/5 border border-indigo-500/10 rounded-xl relative overflow-hidden space-y-3">
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
                   <div className="flex items-center justify-between gap-1.5">
                     <div className="flex items-center gap-1.5">
                       <Sparkles className="h-3.5 w-3.5 text-primary" />
-                      <span className="text-[10px] font-bold text-primary uppercase">ShieldAI Threat Analysis</span>
+                      <span className="text-[10px] font-bold text-primary uppercase">ShieldAI Analysis</span>
                     </div>
-                    <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded">
                       Confidence: {result.aiData?.confidence ?? 100}%
                     </span>
                   </div>
-                  
-                  <p className="text-[11px] text-slate-550 dark:text-slate-400 leading-relaxed border-b border-slate-100 dark:border-slate-800/40 pb-2">
+
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                     {result.explanation}
                   </p>
-
-                  {result.aiData?.indicators && result.aiData.indicators.length > 0 && (
-                    <div className="space-y-1 text-left">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-rose-505 dark:text-rose-400">AI Warning Flags</span>
-                      <div className="flex flex-col gap-1">
-                        {result.aiData.indicators.map((ind: string, idx: number) => (
-                          <div key={idx} className="text-[10px] text-slate-500 dark:text-slate-400 flex items-start gap-1">
-                            <span className="text-rose-500 mt-0.5">•</span>
-                            <span>{ind}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {result.aiData?.recommendations && result.aiData.recommendations.length > 0 && (
-                    <div className="space-y-1 text-left pt-1">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">AI Recommendations</span>
-                      <div className="flex flex-col gap-1">
-                        {result.aiData.recommendations.map((rec: string, idx: number) => (
-                          <div key={idx} className="text-[10px] text-slate-500 dark:text-slate-400 flex items-start gap-1">
-                            <span className="text-emerald-500 mt-0.5">✓</span>
-                            <span>{rec}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {result.aiData?.immediateActions && result.aiData.immediateActions.length > 0 && (
-                    <div className="p-2.5 bg-rose-500/5 border border-rose-500/10 rounded-lg space-y-1 text-left">
-                      <span className="text-[9px] font-black uppercase tracking-wider text-rose-500 dark:text-rose-450">Immediate Hazards Remediation</span>
-                      <div className="flex flex-col gap-1">
-                        {result.aiData.immediateActions.map((act: string, idx: number) => (
-                          <div key={idx} className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold flex items-start gap-1">
-                            <span className="mt-0.5 text-rose-500 font-bold">!</span>
-                            <span>{act}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </motion.div>
             )}
@@ -425,3 +408,5 @@ export const UrlAnalyzer: React.FC = () => {
     </div>
   );
 };
+
+export default UrlAnalyzer;

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  MessageSquare, ShieldCheck, AlertTriangle, 
-  RefreshCw, ArrowRight, AlertOctagon, Sparkles 
+import {
+  MessageSquare, ShieldCheck, AlertTriangle,
+  RefreshCw, ArrowRight, AlertOctagon, Sparkles, CheckCircle2
 } from 'lucide-react';
 import { phishingSamples } from '../data/mockData';
 import type { PhishingMockSample } from '../data/mockData';
@@ -28,7 +28,7 @@ export const PhishingDetector: React.FC = () => {
 
   const handleAnalyze = async () => {
     if (!messageText.trim()) {
-      showToast('Input Required', 'Please enter a message or select a mock sample to analyze.', 'warning');
+      showToast('Input Required', 'Please enter a message or select a test sample to analyze.', 'warning');
       return;
     }
 
@@ -54,7 +54,7 @@ export const PhishingDetector: React.FC = () => {
         localIndicators.push("Greed triggers or prize-based vectors");
       }
 
-      // Secure server-side call
+      // Secure backend proxy call
       const aiResponse = await aiService.analyzePhishing(messageText);
 
       let uiRiskLevel: 'Safe' | 'Suspicious' | 'Danger' = 'Safe';
@@ -86,20 +86,17 @@ export const PhishingDetector: React.FC = () => {
   const handleScanComplete = () => {
     if (!tempMessageEval) return;
     const { finalEval, messageText: textVal } = tempMessageEval;
-    
+
     setResult(finalEval);
     setIsLoading(false);
     setShowResults(true);
 
-    const cleanTarget = textVal.length > 30 
-      ? `${textVal.substring(0, 30)}...` 
-      : textVal;
+    const cleanTarget = textVal.length > 30 ? `${textVal.substring(0, 30)}...` : textVal;
     addScan('phishing', cleanTarget, finalEval.riskLevel === 'Safe' ? 'Verified Clean' : 'Potential Fraud', finalEval.riskScore, finalEval.riskLevel);
-    showToast('Analysis Completed', 'Suspicious payload parsed successfully.', 'success');
+    showToast('Analysis Completed', 'Message content analyzed successfully.', 'success');
   };
 
   useEffect(() => {
-    // Hide old results if user changes the text input
     setShowResults(false);
   }, [messageText]);
 
@@ -107,95 +104,104 @@ export const PhishingDetector: React.FC = () => {
     switch (level) {
       case 'Danger':
         return {
-          icon: <AlertOctagon className="h-8 w-8 text-rose-500" />,
-          color: 'text-rose-500',
-          bg: 'bg-rose-500/10 border-rose-500/25',
-          label: 'Critical Danger'
+          icon: <AlertOctagon className="h-6 w-6 text-rose-600 dark:text-rose-400" />,
+          color: 'text-rose-700 dark:text-rose-400',
+          bg: 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60',
+          label: 'Critical Hazard / Social Engineering'
         };
       case 'Suspicious':
         return {
-          icon: <AlertTriangle className="h-8 w-8 text-amber-500" />,
-          color: 'text-amber-500',
-          bg: 'bg-amber-500/10 border-amber-500/25',
-          label: 'Suspicious / Risk Flag'
+          icon: <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />,
+          color: 'text-amber-700 dark:text-amber-400',
+          bg: 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60',
+          label: 'Suspicious / Coercion Patterns'
         };
       default:
         return {
-          icon: <ShieldCheck className="h-8 w-8 text-emerald-500" />,
-          color: 'text-emerald-500',
-          bg: 'bg-emerald-500/10 border-emerald-500/25',
-          label: 'Verified / Low Risk'
+          icon: <ShieldCheck className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />,
+          color: 'text-emerald-700 dark:text-emerald-400',
+          bg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60',
+          label: 'Verified / Low Threat Indicator'
         };
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 py-4">
+    <div className="max-w-5xl mx-auto space-y-8 py-4 text-left">
       {/* HEADER */}
-      <div>
-        <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white">Phishing Message Detector</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">
-          Paste emails, SMS, or WhatsApp posts to extract structural threat elements and evaluate safety levels.
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-6 space-y-1.5">
+        <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+          <MessageSquare className="h-3.5 w-3.5" />
+          <span>Message Safety Classifier</span>
+        </div>
+        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          Phishing Message Detector
+        </h1>
+        <p className="text-sm text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
+          Inspect email headers, SMS text alerts, or social direct messages for social engineering indicators, artificial urgency, and fraudulent links.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* INPUT PANEL */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-4">
-            <h3 className="font-bold text-slate-800 dark:text-slate-200">Paste Suspicious Message</h3>
-            
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* INPUT & SAMPLES (7 cols) */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+              Message Payload Text
+            </h2>
+
             <textarea
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
-              placeholder="Paste email headers, SMS texts, or chat message body here..."
-              rows={8}
-              className="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-200 text-sm focus:outline-none focus:border-primary transition-colors resize-none placeholder-slate-400 dark:placeholder-slate-600"
+              placeholder="Paste email headers, SMS text, or chat message body here..."
+              rows={7}
+              className="w-full p-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none placeholder-slate-400 dark:placeholder-slate-500 leading-relaxed font-sans"
             />
 
-            <div className="flex flex-wrap gap-2 justify-between items-center">
+            <div className="flex flex-wrap gap-2 justify-between items-center pt-1">
               <button
                 onClick={() => {
                   setMessageText('');
                   setResult(null);
                   setShowResults(false);
                 }}
-                className="px-4 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
+                className="px-3.5 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5"
               >
-                <RefreshCw className="h-3.5 w-3.5" /> Reset
+                <RefreshCw className="h-3.5 w-3.5" /> Reset Input
               </button>
 
               <button
                 onClick={handleAnalyze}
                 disabled={isLoading}
-                className="px-6 py-2.5 bg-primary hover:bg-primary-dark disabled:bg-primary/50 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-primary/20 flex items-center gap-1.5"
+                className="px-6 py-2.5 bg-primary hover:bg-primary-dark disabled:bg-primary/50 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-2"
               >
-                {isLoading ? 'Scanning...' : 'Analyze Message'} <ArrowRight className="h-3.5 w-3.5" />
+                {isLoading ? 'Scanning...' : 'Analyze Message'}
+                <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
 
           {/* SAMPLES SECTION */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Interactive Test Samples
-            </h4>
+            </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {phishingSamples.map((sample) => (
                 <button
                   key={sample.id}
                   onClick={() => handleSampleClick(sample)}
-                  className="p-4 rounded-xl border glass-panel glass-panel-hover text-left flex flex-col justify-between h-28 border-slate-200 dark:border-slate-800/60"
+                  className="p-4 rounded-xl border bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-left flex flex-col justify-between border-slate-200 dark:border-slate-800 transition-all group shadow-xs min-h-[110px]"
                 >
                   <div className="w-full">
-                    <span className="text-[9px] uppercase font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded">
+                    <span className="text-[10px] uppercase font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
                       {sample.source}
                     </span>
-                    <h5 className="font-bold text-xs text-slate-800 dark:text-slate-200 mt-2 truncate w-full">
+                    <h4 className="font-bold text-xs text-slate-900 dark:text-white mt-2 truncate w-full group-hover:text-primary transition-colors">
                       {sample.label}
-                    </h5>
+                    </h4>
                   </div>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate w-full mt-1">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate w-full mt-2">
                     {sample.text}
                   </p>
                 </button>
@@ -204,8 +210,8 @@ export const PhishingDetector: React.FC = () => {
           </div>
         </div>
 
-        {/* RESULTS PANEL */}
-        <div className="lg:col-span-1">
+        {/* RESULTS PANEL (5 cols) */}
+        <div className="lg:col-span-5">
           <AnimatePresence mode="wait">
             {isLoading && (
               <StepProgressScanner onComplete={handleScanComplete} />
@@ -217,14 +223,16 @@ export const PhishingDetector: React.FC = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="glass-panel p-6 rounded-2xl border-dashed border-slate-200 dark:border-slate-800 h-full flex flex-col items-center justify-center text-center py-16"
+                className="bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center space-y-3 py-16"
               >
-                <div className="p-4 bg-slate-100 dark:bg-slate-800/40 rounded-full mb-4">
-                  <MessageSquare className="h-8 w-8 text-slate-405 dark:text-slate-650" />
+                <div className="p-3.5 bg-slate-100 dark:bg-slate-800 rounded-full w-fit mx-auto text-slate-400">
+                  <MessageSquare className="h-7 w-7" />
                 </div>
-                <h3 className="font-bold text-slate-800 dark:text-slate-200">Awaiting Evaluation</h3>
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 max-w-[200px]">
-                  Paste a suspicious message or click a template card to view detailed risk statistics.
+                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">
+                  Awaiting Input
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+                  Paste a suspect message or select a sample to inspect for coercion patterns and spoofed links.
                 </p>
               </motion.div>
             )}
@@ -232,19 +240,21 @@ export const PhishingDetector: React.FC = () => {
             {!isLoading && showResults && result && (
               <motion.div
                 key="results"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="glass-panel p-6 rounded-2xl border-slate-200 dark:border-slate-800 space-y-6"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-6"
               >
                 {/* Risk Level Badge */}
-                <div className={`p-4 rounded-xl border flex items-center gap-3 ${getRiskDetails(result.riskLevel).bg}`}>
+                <div className={`p-4 rounded-xl border flex items-center gap-3.5 ${getRiskDetails(result.riskLevel).bg}`}>
                   <div>{getRiskDetails(result.riskLevel).icon}</div>
                   <div>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Risk Status</span>
-                    <h4 className={`text-base font-bold leading-none ${getRiskDetails(result.riskLevel).color}`}>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Threat Assessment
+                    </span>
+                    <h3 className={`text-sm font-bold ${getRiskDetails(result.riskLevel).color}`}>
                       {getRiskDetails(result.riskLevel).label}
-                    </h4>
+                    </h3>
                   </div>
                 </div>
 
@@ -252,16 +262,18 @@ export const PhishingDetector: React.FC = () => {
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs font-semibold">
                     <span className="text-slate-500 dark:text-slate-400">Risk Score</span>
-                    <span className={`${getRiskDetails(result.riskLevel).color} font-bold`}>{result.riskScore}/100</span>
+                    <span className={`${getRiskDetails(result.riskLevel).color} font-bold`}>
+                      {result.riskScore}/100
+                    </span>
                   </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full ${
-                        result.riskLevel === 'Danger' 
-                          ? 'bg-rose-500' 
-                          : result.riskLevel === 'Suspicious' 
-                          ? 'bg-amber-500' 
-                          : 'bg-emerald-500'
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        result.riskLevel === 'Danger'
+                          ? 'bg-rose-500'
+                          : result.riskLevel === 'Suspicious'
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
                       }`}
                       style={{ width: `${result.riskScore}%` }}
                     />
@@ -269,64 +281,54 @@ export const PhishingDetector: React.FC = () => {
                 </div>
 
                 {/* Indicators */}
-                <div className="space-y-2.5">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                    Suspicious Indicators
-                  </h4>
-                  <ul className="space-y-2">
-                    {result.indicators.map((ind: string, idx: number) => (
-                      <li key={idx} className="flex gap-2 text-xs text-slate-655 dark:text-slate-300 leading-relaxed">
-                        <span className="text-rose-500 font-bold mt-0.5">•</span>
-                        <span>{ind}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                {result.indicators.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Detected Threat Indicators
+                    </h4>
+                    <div className="space-y-1.5">
+                      {result.indicators.map((ind: string, idx: number) => (
+                        <div key={idx} className="p-2.5 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 rounded-xl text-xs text-rose-800 dark:text-rose-300 flex items-start gap-2">
+                          <span className="font-bold text-rose-500">•</span>
+                          <span>{ind}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Recommendations */}
-                <div className="space-y-2.5">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                    Security Recommendations
-                  </h4>
-                  <ul className="space-y-2">
-                    {result.recommendations.map((rec: string, idx: number) => (
-                      <li key={idx} className="flex gap-2 text-xs text-slate-655 dark:text-slate-300 leading-relaxed">
-                        <span className="text-emerald-500 font-bold mt-0.5">✓</span>
-                        <span>{rec}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                {result.recommendations.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Mitigation Advice
+                    </h4>
+                    <div className="space-y-1.5">
+                      {result.recommendations.map((rec: string, idx: number) => (
+                        <div key={idx} className="p-2.5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                          <span>{rec}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* AI Explanation Section */}
-                <div className="p-4 bg-gradient-to-br from-indigo-500/5 to-slate-900/5 border border-indigo-500/10 rounded-xl relative overflow-hidden space-y-3">
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
                   <div className="flex items-center justify-between gap-1.5">
                     <div className="flex items-center gap-1.5">
                       <Sparkles className="h-3.5 w-3.5 text-primary" />
-                      <span className="text-[10px] font-bold text-primary uppercase">ShieldAI Threat Analysis</span>
+                      <span className="text-[10px] font-bold text-primary uppercase">ShieldAI Analysis</span>
                     </div>
-                    <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded">
                       Confidence: {result.aiData?.confidence ?? 100}%
                     </span>
                   </div>
-                  
-                  <p className="text-[11px] text-slate-550 dark:text-slate-400 leading-relaxed border-b border-slate-100 dark:border-slate-800/40 pb-2">
+
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                     {result.explanation}
                   </p>
-
-                  {result.aiData?.immediateActions && result.aiData.immediateActions.length > 0 && (
-                    <div className="p-2.5 bg-rose-500/5 border border-rose-500/10 rounded-lg space-y-1 text-left">
-                      <span className="text-[9px] font-black uppercase tracking-wider text-rose-550 dark:text-rose-400">Immediate Actions</span>
-                      <div className="flex flex-col gap-1">
-                        {result.aiData.immediateActions.map((act: string, idx: number) => (
-                          <div key={idx} className="text-[10px] text-rose-600 dark:text-rose-455 font-semibold flex items-start gap-1">
-                            <span className="mt-0.5 text-rose-500 font-bold">!</span>
-                            <span>{act}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </motion.div>
             )}
@@ -336,3 +338,5 @@ export const PhishingDetector: React.FC = () => {
     </div>
   );
 };
+
+export default PhishingDetector;

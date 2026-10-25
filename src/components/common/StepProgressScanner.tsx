@@ -50,7 +50,7 @@ export const StepProgressScanner: React.FC<StepProgressScannerProps> = ({ onComp
       </div>
 
       <div className="space-y-2 text-center w-full">
-        <p className="text-[10px] font-extrabold text-slate-450 dark:text-slate-500 uppercase tracking-widest">Active Scan Process</p>
+        <p className="text-[10px] font-extrabold text-slate-500 dark:text-slate-500 uppercase tracking-widest">Active Scan Process</p>
         <h4 className="text-sm font-extrabold text-slate-800 dark:text-white transition-all duration-300 h-5">
           {stepLabel}
         </h4>
